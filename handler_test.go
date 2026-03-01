@@ -16,7 +16,7 @@ func TestChatEndpoint_InvalidMethod(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/chat", nil)
 	w := httptest.NewRecorder()
 
-	handler := newChatHandler(testModel, nil, nil, nil, nil, context.Background(), nil)
+	handler := newChatHandler(testModel, nil, nil, context.Background(), nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
@@ -29,7 +29,7 @@ func TestChatEndpoint_EmptyMessages(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
-	handler := newChatHandler(testModel, nil, nil, nil, nil, context.Background(), nil)
+	handler := newChatHandler(testModel, nil, nil, context.Background(), nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -41,7 +41,7 @@ func TestChatEndpoint_InvalidBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader([]byte("not json")))
 	w := httptest.NewRecorder()
 
-	handler := newChatHandler(testModel, nil, nil, nil, nil, context.Background(), nil)
+	handler := newChatHandler(testModel, nil, nil, context.Background(), nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -56,7 +56,7 @@ func TestChatEndpoint_NoClient(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
-	handler := newChatHandler(testModel, nil, nil, nil, nil, context.Background(), nil)
+	handler := newChatHandler(testModel, nil, nil, context.Background(), nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusInternalServerError {
@@ -72,7 +72,7 @@ func TestChatEndpoint_StreamsViaAgentRun(t *testing.T) {
 		},
 	}
 
-	handler := newChatHandler("test-model", mockClient, nil, nil, nil, context.Background(), nil)
+	handler := newChatHandler("test-model", mockClient, nil, context.Background(), nil)
 
 	body, _ := json.Marshal(chatRequest{
 		Messages: []ollamaapi.Message{{Role: "user", Content: "Hi"}},

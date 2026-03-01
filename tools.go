@@ -1,13 +1,10 @@
 package chat
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
-
-	"github.com/google/uuid"
 
 	tool "github.com/benaskins/axon-tool"
 	ollamaapi "github.com/ollama/ollama/api"
@@ -15,17 +12,17 @@ import (
 
 // buildToolMap builds a map of tool.ToolDef for the given skills.
 // Per-request state (sendEvent, imageRefs) is closed over by chat-specific tools.
-func (h *chatHandler) buildToolMap(skills []string, sendEvent func(sseEvent), imageRefs *[]map[string]string, r *http.Request, agentSlug string, conversationID string, systemPrompt string) map[string]tool.ToolDef {
+func (h *chatHandler) buildToolMap(skills []string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) map[string]tool.ToolDef {
 	result := make(map[string]tool.ToolDef)
 	for _, skill := range skills {
-		if def, ok := h.buildTool(skill, sendEvent, imageRefs, r, agentSlug, conversationID, systemPrompt); ok {
+		if def, ok := h.buildTool(skill, sendEvent, r, agentSlug, conversationID, systemPrompt); ok {
 			result[skill] = def
 		}
 	}
 	return result
 }
 
-func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), imageRefs *[]map[string]string, r *http.Request, agentSlug string, conversationID string, systemPrompt string) (tool.ToolDef, bool) {
+func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) (tool.ToolDef, bool) {
 	switch skill {
 	case "current_time":
 		return tool.CurrentTimeTool(), true
@@ -35,48 +32,10 @@ func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), imageRef
 		return h.fetchPageTool(r), true
 	case "check_weather":
 		return h.checkWeatherTool(r), true
-	case "take_photo":
-		return h.takePhotoTool(sendEvent, imageRefs, false), true
-	case "REMOVED_TOOL":
-		return h.takePhotoTool(sendEvent, imageRefs, true), true
 	case "use_claude":
 		return h.useClaudeTool(sendEvent, r, agentSlug, conversationID), true
 	default:
 		return tool.ToolDef{}, false
-	}
-}
-
-func (h *chatHandler) takePhotoTool(sendEvent func(sseEvent), imageRefs *[]map[string]string, private bool) tool.ToolDef {
-	name := "take_photo"
-	description := "Take a photo or selfie. Only use when the user asks, you're in a new setting, or a significant visual moment happens. Most conversation turns should NOT include a photo."
-	paramDesc := "A detailed description of the image to generate. Include subject, setting, lighting, mood, and composition details."
-	if private {
-		name = "REMOVED_TOOL"
-		description = "Take a photo using the private unrestricted pipeline. Use instead of take_photo when the scene requires content that the standard pipeline would filter out. Only use when the user specifically requests this kind of content."
-		paramDesc += " This pipeline has no content restrictions."
-	}
-
-	return tool.ToolDef{
-		Name:        name,
-		Description: description,
-		Parameters: tool.ParameterSchema{
-			Type:     "object",
-			Required: []string{"prompt"},
-			Properties: map[string]tool.PropertySchema{
-				"prompt": {Type: "string", Description: paramDesc},
-			},
-		},
-		Execute: func(ctx *tool.ToolContext, args map[string]any) tool.ToolResult {
-			promptStr, _ := args["prompt"].(string)
-			if promptStr == "" || h.taskRunner == nil {
-				label := "image"
-				if private {
-					label = "private image"
-				}
-				return tool.ToolResult{Content: fmt.Sprintf("Error: %s generation not available", label)}
-			}
-			return h.submitImageTaskV2(ctx, sendEvent, imageRefs, promptStr, private)
-		},
 	}
 }
 
@@ -239,80 +198,6 @@ func (h *chatHandler) useClaudeTool(sendEvent func(sseEvent), r *http.Request, a
 	}
 }
 
-// submitImageTaskV2 is the tool.ToolDef-compatible version of submitImageTask.
-func (h *chatHandler) submitImageTaskV2(ctx *tool.ToolContext, sendEvent func(sseEvent), imageRefs *[]map[string]string, promptStr string, private bool) tool.ToolResult {
-	imageID := uuid.New().String()
-
-	finalPrompt := promptStr
-	if h.promptMerger != nil {
-		var recentMessages []Message
-		if ctx.ConversationID != "" && h.store != nil {
-			if msgs, err := h.store.GetRecentMessages(ctx.ConversationID, 5); err == nil {
-				recentMessages = msgs
-			}
-		}
-
-		var merged string
-		var err error
-		if private {
-			merged, err = h.promptMerger.MergePromptPrivate(ctx.SystemPrompt, recentMessages, promptStr)
-		} else {
-			merged, err = h.promptMerger.MergePrompt(ctx.SystemPrompt, recentMessages, promptStr)
-		}
-		if err == nil {
-			finalPrompt = merged
-		} else {
-			slog.Warn("prompt merge failed, using raw scene prompt", "error", err)
-		}
-	}
-
-	var refImageB64 string
-	if ctx.AgentSlug != "" && h.store != nil && h.imageStore != nil {
-		if baseImg, err := h.store.GetBaseImageByUser(ctx.UserID, ctx.AgentSlug); err == nil && baseImg != nil {
-			if imgData, err := h.imageStore.Load(baseImg.ID); err == nil {
-				refImageB64 = base64Encode(imgData)
-			} else {
-				slog.Warn("failed to load base image", "error", err, "base_image_id", baseImg.ID)
-			}
-		}
-	}
-
-	submission := &ImageTaskSubmission{
-		Prompt:         finalPrompt,
-		ReferenceImage: refImageB64,
-		AgentSlug:      ctx.AgentSlug,
-		UserID:         ctx.UserID,
-		ConversationID: ctx.ConversationID,
-		ImageID:        imageID,
-		Private:        private,
-	}
-
-	_, err := h.taskRunner.SubmitTask(context.Background(), NewImageTaskRequest(submission))
-	if err != nil {
-		slog.Error("failed to submit image task", "error", err, "image_id", imageID)
-		return tool.ToolResult{Content: "Error: failed to submit image generation task"}
-	}
-
-	sendEvent(sseEvent{Task: &SSETaskEvent{
-		TaskID:      imageID,
-		Type:        "image_generation",
-		Status:      "running",
-		Description: "Generating image...",
-	}})
-
-	h.bgTasks.Add(1)
-	go func() {
-		defer h.bgTasks.Done()
-		h.pollTaskCompletion(imageID)
-	}()
-
-	pipelineLabel := "Image"
-	if private {
-		pipelineLabel = "Image (private pipeline)"
-	}
-	return tool.ToolResult{Content: fmt.Sprintf("%s generation started, it will appear shortly.", pipelineLabel)}
-}
-
 // SkillInfo describes an available skill for the frontend.
 type SkillInfo struct {
 	ID          string `json:"id"`
@@ -322,8 +207,6 @@ type SkillInfo struct {
 
 // AvailableSkills is the single source of truth for all skills.
 var AvailableSkills = []SkillInfo{
-	{ID: "take_photo", Label: "Take Photo", Description: "generate images during conversation"},
-	{ID: "REMOVED_TOOL", Label: "Private Photo", Description: "generate unrestricted images during conversation"},
 	{ID: "web_search", Label: "Web Search", Description: "search the web for current information"},
 	{ID: "fetch_page", Label: "Fetch Page", Description: "read web pages and extract relevant content"},
 	{ID: "use_claude", Label: "Use Claude", Description: "request code changes to itself"},
@@ -361,30 +244,6 @@ func BuildToolsForAgent(a Agent) ollamaapi.Tools {
 					Properties: map[string]tool.PropertySchema{
 						"url":      {Type: "string", Description: "The URL to fetch."},
 						"question": {Type: "string", Description: "What to look for."},
-					},
-				},
-			}
-		case "take_photo":
-			defs[skill] = tool.ToolDef{
-				Name:        "take_photo",
-				Description: "Take a photo or selfie.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"prompt"},
-					Properties: map[string]tool.PropertySchema{
-						"prompt": {Type: "string", Description: "Description of the image."},
-					},
-				},
-			}
-		case "REMOVED_TOOL":
-			defs[skill] = tool.ToolDef{
-				Name:        "REMOVED_TOOL",
-				Description: "Take a photo using the private pipeline.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"prompt"},
-					Properties: map[string]tool.PropertySchema{
-						"prompt": {Type: "string", Description: "Description of the image."},
 					},
 				},
 			}

@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/benaskins/axon"
 )
@@ -96,30 +95,12 @@ func TestBuildSystemPrompt_EmptyFields(t *testing.T) {
 func TestBuildSystemPrompt_WithSkills(t *testing.T) {
 	agent := Agent{
 		SystemPrompt: "You are a helper.",
-		Skills:       []string{"take_photo", "web_search"},
+		Skills:       []string{"web_search"},
 	}
 	prompt := BuildSystemPrompt(agent)
 
-	if !strings.Contains(prompt, "## Camera") {
-		t.Error("expected Camera section in system prompt")
-	}
 	if !strings.Contains(prompt, "## Search") {
 		t.Error("expected Search section in system prompt")
-	}
-}
-
-func TestBuildSystemPrompt_WithPrivatePhotoSkill(t *testing.T) {
-	agent := Agent{
-		SystemPrompt: "You are a helper.",
-		Skills:       []string{"REMOVED_TOOL"},
-	}
-	prompt := BuildSystemPrompt(agent)
-
-	if !strings.Contains(prompt, "## Private Camera") {
-		t.Error("expected Private Camera section in system prompt")
-	}
-	if !strings.Contains(prompt, "unrestricted") {
-		t.Error("expected unrestricted mention in private camera guidance")
 	}
 }
 
@@ -394,39 +375,5 @@ func TestAgentSkillsOmittedWhenEmpty(t *testing.T) {
 
 	if strings.Contains(string(data), "skills") {
 		t.Error("expected skills to be omitted from JSON when empty")
-	}
-}
-
-func TestGetAgentHandler_IncludesBaseImageURL(t *testing.T) {
-	store := newMemoryStore()
-	store.CreateUser("default_user")
-	agent := testAgent()
-	store.SaveAgent(agent)
-
-	img := GalleryImage{ID: "img-1", AgentSlug: agent.Slug, UserID: agent.UserID, Prompt: "base", Model: "sdxl", CreatedAt: time.Now()}
-	store.SaveGalleryImage(img)
-	store.SetBaseImage(agent.UserID, agent.Slug, "img-1")
-
-	handler := &agentDetailHandler{store: store}
-	req := httptest.NewRequest(http.MethodGet, "/api/agents/helper", nil)
-	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", agent.Slug)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-
-	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
-
-	baseImageURL, ok := resp["base_image_url"].(string)
-	if !ok {
-		t.Fatal("expected base_image_url in response")
-	}
-
-	if baseImageURL != "/api/images/img-1" {
-		t.Errorf("expected base_image_url /api/images/img-1, got %s", baseImageURL)
 	}
 }

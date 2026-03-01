@@ -17,9 +17,8 @@ type MemoryStore struct {
 	mu            sync.RWMutex
 	users         map[string]bool
 	agents        map[string]chat.Agent        // key: userID+"/"+slug
-	conversations map[string]chat.Conversation  // key: id
-	messages      map[string][]chat.Message      // key: conversationID
-	galleryImages map[string]chat.GalleryImage   // key: id
+	conversations map[string]chat.Conversation // key: id
+	messages      map[string][]chat.Message    // key: conversationID
 }
 
 // NewMemoryStore creates a new in-memory store.
@@ -29,7 +28,6 @@ func NewMemoryStore() *MemoryStore {
 		agents:        make(map[string]chat.Agent),
 		conversations: make(map[string]chat.Conversation),
 		messages:      make(map[string][]chat.Message),
-		galleryImages: make(map[string]chat.GalleryImage),
 	}
 }
 
@@ -208,66 +206,6 @@ func (s *MemoryStore) AppendMessage(conversationID string, msg chat.Message) err
 	if c, ok := s.conversations[conversationID]; ok {
 		c.UpdatedAt = time.Now()
 		s.conversations[conversationID] = c
-	}
-	return nil
-}
-
-// --- Gallery Image operations ---
-
-func (s *MemoryStore) SaveGalleryImage(img chat.GalleryImage) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.galleryImages[img.ID] = img
-	return nil
-}
-
-func (s *MemoryStore) GetGalleryImage(id string) (*chat.GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	img, ok := s.galleryImages[id]
-	if !ok {
-		return nil, fmt.Errorf("gallery image not found")
-	}
-	return &img, nil
-}
-
-func (s *MemoryStore) ListGalleryImagesByUser(userID string, agentSlug string) ([]chat.GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var result []chat.GalleryImage
-	for _, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug {
-			result = append(result, img)
-		}
-	}
-	return result, nil
-}
-
-func (s *MemoryStore) GetBaseImageByUser(userID string, agentSlug string) (*chat.GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug && img.IsBase {
-			return &img, nil
-		}
-	}
-	return nil, nil
-}
-
-func (s *MemoryStore) SetBaseImage(userID string, agentSlug string, imageID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// Unset current base
-	for id, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug && img.IsBase {
-			img.IsBase = false
-			s.galleryImages[id] = img
-		}
-	}
-	// Set new base
-	if img, ok := s.galleryImages[imageID]; ok {
-		img.IsBase = true
-		s.galleryImages[imageID] = img
 	}
 	return nil
 }

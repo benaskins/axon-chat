@@ -15,7 +15,6 @@ type memoryStore struct {
 	agents        map[string]Agent
 	conversations map[string]Conversation
 	messages      map[string][]Message
-	galleryImages map[string]GalleryImage
 }
 
 func newMemoryStore() *memoryStore {
@@ -24,7 +23,6 @@ func newMemoryStore() *memoryStore {
 		agents:        make(map[string]Agent),
 		conversations: make(map[string]Conversation),
 		messages:      make(map[string][]Message),
-		galleryImages: make(map[string]GalleryImage),
 	}
 }
 
@@ -178,62 +176,6 @@ func (s *memoryStore) AppendMessage(conversationID string, msg Message) error {
 	if c, ok := s.conversations[conversationID]; ok {
 		c.UpdatedAt = time.Now()
 		s.conversations[conversationID] = c
-	}
-	return nil
-}
-
-func (s *memoryStore) SaveGalleryImage(img GalleryImage) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.galleryImages[img.ID] = img
-	return nil
-}
-
-func (s *memoryStore) GetGalleryImage(id string) (*GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	img, ok := s.galleryImages[id]
-	if !ok {
-		return nil, fmt.Errorf("gallery image not found")
-	}
-	return &img, nil
-}
-
-func (s *memoryStore) ListGalleryImagesByUser(userID string, agentSlug string) ([]GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var result []GalleryImage
-	for _, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug {
-			result = append(result, img)
-		}
-	}
-	return result, nil
-}
-
-func (s *memoryStore) GetBaseImageByUser(userID string, agentSlug string) (*GalleryImage, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug && img.IsBase {
-			return &img, nil
-		}
-	}
-	return nil, nil
-}
-
-func (s *memoryStore) SetBaseImage(userID string, agentSlug string, imageID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for id, img := range s.galleryImages {
-		if img.UserID == userID && img.AgentSlug == agentSlug && img.IsBase {
-			img.IsBase = false
-			s.galleryImages[id] = img
-		}
-	}
-	if img, ok := s.galleryImages[imageID]; ok {
-		img.IsBase = true
-		s.galleryImages[imageID] = img
 	}
 	return nil
 }

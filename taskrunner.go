@@ -36,29 +36,10 @@ func NewClaudeSessionRequest(description, requestedBy, username string) *TaskSub
 	}
 }
 
-// NewImageTaskRequest creates a TaskSubmitRequest for an image_generation task.
-func NewImageTaskRequest(params *ImageTaskSubmission) *TaskSubmitRequest {
-	return &TaskSubmitRequest{
-		Type:   "image_generation",
-		Params: params,
-	}
-}
-
 // TaskSubmission is the response from submitting a new task.
 type TaskSubmission struct {
 	TaskID string `json:"task_id"`
 	Status string `json:"status"`
-}
-
-// ImageTaskSubmission holds the parameters for an image generation task.
-type ImageTaskSubmission struct {
-	Prompt         string `json:"prompt"`
-	ReferenceImage string `json:"reference_image,omitempty"` // base64-encoded PNG
-	AgentSlug      string `json:"agent_slug"`
-	UserID         string `json:"user_id"`
-	ConversationID string `json:"conversation_id,omitempty"`
-	ImageID        string `json:"image_id"`
-	Private        bool   `json:"private,omitempty"`
 }
 
 // TaskStatus is the response from checking a task's progress.

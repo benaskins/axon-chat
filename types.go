@@ -23,17 +23,15 @@ type Agent struct {
 
 // AgentSummary is the lightweight representation for list responses.
 type AgentSummary struct {
-	Slug         string  `json:"slug"`
-	Name         string  `json:"name"`
-	Tagline      string  `json:"tagline"`
-	AvatarEmoji  string  `json:"avatar_emoji"`
-	DefaultModel string  `json:"default_model,omitempty"`
-	BaseImageURL *string `json:"base_image_url,omitempty"`
+	Slug         string `json:"slug"`
+	Name         string `json:"name"`
+	Tagline      string `json:"tagline"`
+	AvatarEmoji  string `json:"avatar_emoji"`
+	DefaultModel string `json:"default_model,omitempty"`
 }
 
 // AgentDetailResponse is the full agent response including the assembled full prompt.
 type AgentDetailResponse struct {
 	Agent
-	FullPrompt   string  `json:"full_prompt"`
-	BaseImageURL *string `json:"base_image_url,omitempty"`
+	FullPrompt string `json:"full_prompt"`
 }

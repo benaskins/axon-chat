@@ -26,12 +26,6 @@ type Store interface {
 	GetRecentMessages(conversationID string, limit int) ([]Message, error)
 	AppendMessage(conversationID string, msg Message) error
 
-	// Gallery Images
-	SaveGalleryImage(img GalleryImage) error
-	GetGalleryImage(id string) (*GalleryImage, error)
-	ListGalleryImagesByUser(userID string, agentSlug string) ([]GalleryImage, error)
-	GetBaseImageByUser(userID string, agentSlug string) (*GalleryImage, error)
-	SetBaseImage(userID string, agentSlug string, imageID string) error
 }
 
 // Conversation represents a chat conversation with an agent.
@@ -63,18 +57,5 @@ type Message struct {
 	ToolCalls      string    `json:"tool_calls,omitempty"`
 	Images         string    `json:"images,omitempty"`
 	DurationMs     *int64    `json:"duration_ms,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-}
-
-// GalleryImage represents a generated image with metadata.
-type GalleryImage struct {
-	ID             string    `json:"id"`
-	AgentSlug      string    `json:"agent_slug"`
-	UserID         string    `json:"user_id"`
-	ConversationID *string   `json:"conversation_id"`
-	Prompt         string    `json:"prompt"`
-	Model          string    `json:"model"`
-	IsBase         bool      `json:"is_base"`
-	NSFWDetected   bool      `json:"nsfw_detected"`
 	CreatedAt      time.Time `json:"created_at"`
 }

@@ -29,12 +29,6 @@ func BuildSystemPrompt(a Agent) string {
 	// Add tool-use guidance per skill
 	for _, skill := range a.Skills {
 		switch skill {
-		case "take_photo":
-			parts = append(parts, `## Camera
-You have a camera and can take photos. Use it when there's a visual moment worth sharing — a new setting, something you made, or when the user asks to see something.`)
-		case "REMOVED_TOOL":
-			parts = append(parts, `## Private Camera
-You have access to a private camera with no content restrictions. Use REMOVED_TOOL instead of take_photo when the user requests content that requires the unrestricted pipeline.`)
 		case "web_search":
 			parts = append(parts, "## Search\nYou can search the web for current information. Your search queries are automatically refined using your identity and expertise to produce more targeted results. When you use search results, cite your sources with inline markdown links like [Title](url). Search when you need recent facts, news, or details you're unsure about — not every question requires a search.")
 		case "use_claude":
@@ -69,14 +63,6 @@ func (h *agentsListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich summaries with base image URLs
-	for i := range summaries {
-		if baseImg, err := h.store.GetBaseImageByUser(userID, summaries[i].Slug); err == nil && baseImg != nil {
-			url := "/api/images/" + baseImg.ID
-			summaries[i].BaseImageURL = &url
-		}
-	}
-
 	axon.WriteJSON(w, http.StatusOK, summaries)
 }
 
@@ -104,19 +90,9 @@ func (h *agentDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch base image if set
-	var baseImageURL *string
-	if h.store != nil {
-		if baseImg, err := h.store.GetBaseImageByUser(userID, agent.Slug); err == nil && baseImg != nil {
-			url := "/api/images/" + baseImg.ID
-			baseImageURL = &url
-		}
-	}
-
 	resp := AgentDetailResponse{
-		Agent:        *agent,
-		FullPrompt:   BuildSystemPrompt(*agent),
-		BaseImageURL: baseImageURL,
+		Agent:      *agent,
+		FullPrompt: BuildSystemPrompt(*agent),
 	}
 
 	axon.WriteJSON(w, http.StatusOK, resp)

@@ -2,7 +2,6 @@ package chat //  (NSFW detector is a safety feature)
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -65,9 +64,7 @@ type chatHandler struct {
 	defaultModel    string
 	client          ChatClient
 	adapter         *OllamaAdapter
-	imageStore      *ImageStore
 	store           Store
-	promptMerger    *PromptMerger
 	shutdownCtx     context.Context
 	bgTasks         *sync.WaitGroup
 	eventBus        *sse.EventBus[Event]
@@ -80,13 +77,11 @@ type chatHandler struct {
 	pollInterval    time.Duration
 }
 
-func newChatHandler(defaultModel string, client ChatClient, imageStore *ImageStore, store Store, promptMerger *PromptMerger, shutdownCtx context.Context, eventBus *sse.EventBus[Event]) *chatHandler {
+func newChatHandler(defaultModel string, client ChatClient, store Store, shutdownCtx context.Context, eventBus *sse.EventBus[Event]) *chatHandler {
 	h := &chatHandler{
 		defaultModel: defaultModel,
 		client:       client,
-		imageStore:   imageStore,
 		store:        store,
-		promptMerger: promptMerger,
 		shutdownCtx:  shutdownCtx,
 		bgTasks:      &sync.WaitGroup{},
 		eventBus:     eventBus,
@@ -159,9 +154,6 @@ type sseEvent struct {
 	Thinking        string        `json:"thinking,omitempty"`
 	Done            bool          `json:"done"`
 	TotalDurationMs *int64        `json:"total_duration_ms,omitempty"`
-	ImageURL        string        `json:"image_url,omitempty"`
-	ImageID         string        `json:"image_id,omitempty"`
-	NSFWDetected    bool          `json:"nsfw_detected,omitempty"`
 	ToolUse         string        `json:"tool_use,omitempty"`
 	Task            *SSETaskEvent `json:"task,omitempty"`
 }
@@ -177,7 +169,6 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 
 	start := time.Now()
 	var tokenCount float64
-	var imageRefs []map[string]string
 
 	sendEvent := func(event sseEvent) {
 		data, err := json.Marshal(event)
@@ -198,7 +189,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Build tool map from skills
-	tools := h.buildToolMap(skills, sendEvent, &imageRefs, r, agentSlug, conversationID, systemPrompt)
+	tools := h.buildToolMap(skills, sendEvent, r, agentSlug, conversationID, systemPrompt)
 
 	// Use tool router to filter tools based on user message
 	if h.toolRouter != nil && len(tools) > 0 && userContent != "" {
@@ -284,10 +275,6 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 			Thinking:   result.Thinking,
 			DurationMs: &durationMs,
 		}
-		if len(imageRefs) > 0 {
-			imagesJSON, _ := json.Marshal(imageRefs)
-			assistantMsg.Images = string(imagesJSON)
-		}
 		h.store.AppendMessage(conversationID, assistantMsg)
 
 		conv, err := h.store.GetConversationByUser(userID, conversationID)
@@ -326,8 +313,6 @@ func describeToolUse(name string, args map[string]any) string {
 			return fmt.Sprintf("\n\n*Reading %s...*\n\n", u)
 		}
 		return "\n\n*Reading a web page...*\n\n"
-	case "take_photo":
-		return "\n\n*Taking a photo...*\n\n"
 	case "check_weather":
 		if loc, ok := args["location"].(string); ok {
 			return fmt.Sprintf("\n\n*Checking weather for %s...*\n\n", loc)
@@ -487,8 +472,4 @@ func (h *chatHandler) WaitForBackgroundTasks() {
 	h.bgTasks.Wait()
 }
 
-// base64Encode encodes raw bytes to a base64 string.
-func base64Encode(data []byte) string {
-	return base64.StdEncoding.EncodeToString(data)
-}
 

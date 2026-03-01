@@ -24,7 +24,6 @@ type Server struct {
 	Weather         WeatherProvider
 	PageFetcher     *PageFetcher
 	SearchQualifier *SearchQualifier
-	PromptMerger    *PromptMerger
 }
 
 // NewServer creates a chat server with required dependencies.
@@ -32,12 +31,11 @@ func NewServer(
 	cfg Config,
 	store Store,
 	client ChatClient,
-	imageStore *ImageStore,
 	staticFiles *embed.FS,
 	eventBus *sse.EventBus[Event],
 	shutdownCtx context.Context,
 ) *Server {
-	chat := newChatHandler(cfg.DefaultModel, client, imageStore, store, nil, shutdownCtx, eventBus)
+	chat := newChatHandler(cfg.DefaultModel, client, store, shutdownCtx, eventBus)
 
 	return &Server{
 		config:      cfg,
@@ -56,7 +54,6 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	s.chat.weather = s.Weather
 	s.chat.pageFetcher = s.PageFetcher
 	s.chat.searchQualifier = s.SearchQualifier
-	s.chat.promptMerger = s.PromptMerger
 
 	mux := http.NewServeMux()
 
@@ -69,7 +66,6 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 	// Protected API routes
 	models := &modelsHandler{lister: s.chat.client.(ModelLister)}
-	images := &imageHandler{store: s.chat.imageStore}
 
 	agentsList := &agentsListHandler{store: s.chat.store}
 	agentDetail := &agentDetailHandler{store: s.chat.store}
@@ -81,10 +77,6 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	convoGet := &conversationGetHandler{store: s.chat.store}
 	convoDelete := &conversationDeleteHandler{store: s.chat.store}
 
-	galleryList := &galleryListHandler{store: s.chat.store}
-	galleryBase := &getBaseImageHandler{store: s.chat.store}
-	gallerySetBase := &setBaseImageHandler{store: s.chat.store}
-
 	mux.Handle("/api/chat", auth(s.chat))
 	mux.Handle("/api/models", auth(models))
 	mux.Handle("GET /api/agents/{slug}", auth(agentDetail))
@@ -95,7 +87,6 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	mux.Handle("GET /api/conversations/{id}", auth(convoGet))
 	mux.Handle("DELETE /api/conversations/{id}", auth(convoDelete))
 	mux.Handle("GET /api/agents", auth(agentsList))
-	mux.Handle("GET /api/images/{id}", auth(images))
 	mux.Handle("GET /api/events", auth(&eventsHandler{bus: s.chat.eventBus}))
 
 	// Task list proxy (forwards to task runner)
@@ -118,10 +109,6 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 		}
 		axon.WriteJSON(w, http.StatusOK, tasks)
 	})))
-
-	mux.Handle("GET /api/agents/{slug}/gallery", auth(galleryList))
-	mux.Handle("GET /api/agents/{slug}/gallery/base", auth(galleryBase))
-	mux.Handle("PUT /api/agents/{slug}/gallery/{id}/base", auth(gallerySetBase))
 
 	// Logout — clears session cookie and redirects to login
 	mux.HandleFunc("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
