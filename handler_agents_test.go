@@ -28,10 +28,10 @@ func testAgent() Agent {
 		UserID:       "default_user",
 		Slug:         "aurelia",
 		Name:         "Aurelia",
-		Tagline:      "Reflective companion",
+		Tagline:      "Systems-focused research and engineering",
 		AvatarEmoji:  "\U0001F300",
-		SystemPrompt: "## Identity\nYou are Aurelia.\n\n## Appearance\nWarm amber eyes.\n\n## Voice\nCalm and precise.\n\n## Relationship\nBen's collaborator.\n\n## Setting\nA quiet studio.",
-		Greeting:     "Hello Ben.",
+		SystemPrompt: "## Identity\nYou are Aurelia, a technical research and engineering service.\n\n## Tone\nDirect and precise.\n\n## Focus\nSystems architecture, infrastructure, and software engineering.\n\n## Approach\nAnalyse thoroughly before recommending. Cite sources when possible.",
+		Greeting:     "What are we working on?",
 		DefaultModel: "qwen3:32b",
 		Think:        &think,
 		Temperature:  &temp,
@@ -54,7 +54,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 	agent := testAgent()
 	prompt := BuildSystemPrompt(agent)
 
-	expected := "## Identity\nYou are Aurelia.\n\n## Appearance\nWarm amber eyes.\n\n## Voice\nCalm and precise.\n\n## Relationship\nBen's collaborator.\n\n## Setting\nA quiet studio."
+	expected := "## Identity\nYou are Aurelia, a technical research and engineering service.\n\n## Tone\nDirect and precise.\n\n## Focus\nSystems architecture, infrastructure, and software engineering.\n\n## Approach\nAnalyse thoroughly before recommending. Cite sources when possible."
 	if prompt != expected {
 		t.Errorf("unexpected system prompt:\ngot:  %q\nwant: %q", prompt, expected)
 	}
@@ -246,8 +246,8 @@ func TestGetAgentHandler(t *testing.T) {
 	if resp.Slug != "aurelia" {
 		t.Errorf("expected slug aurelia, got %s", resp.Slug)
 	}
-	if resp.Greeting != "Hello Ben." {
-		t.Errorf("expected greeting 'Hello Ben.', got %s", resp.Greeting)
+	if resp.Greeting != "What are we working on?" {
+		t.Errorf("expected greeting 'What are we working on?', got %s", resp.Greeting)
 	}
 	if resp.FullPrompt == "" {
 		t.Error("expected non-empty full_prompt")
