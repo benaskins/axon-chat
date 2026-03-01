@@ -132,7 +132,7 @@
     <section class="form-section">
       <div class="field">
         <label for="name">Name</label>
-        <input id="name" type="text" bind:value={name} placeholder="Aurelia" required />
+        <input id="name" type="text" bind:value={name} placeholder="My Agent" required />
       </div>
       <div class="field">
         <label for="slug">Slug</label>

@@ -19,7 +19,7 @@ const (
 	fetchMaxBody      = 2 << 20 // 2MB
 	extractionMaxLen  = 8000    // chars sent to extraction model
 	extractionModel   = "qwen2.5:3b"
-	fetchUserAgent    = "Aurelia/1.0"
+	fetchUserAgent    = "axon-chat/1.0"
 	fetchDelayBetween = 1 * time.Second
 )
 

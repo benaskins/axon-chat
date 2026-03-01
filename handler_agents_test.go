@@ -26,11 +26,11 @@ func testAgent() Agent {
 	temp := 0.7
 	return Agent{
 		UserID:       "default_user",
-		Slug:         "aurelia",
-		Name:         "Aurelia",
-		Tagline:      "Systems-focused research and engineering",
-		AvatarEmoji:  "\U0001F300",
-		SystemPrompt: "## Identity\nYou are Aurelia, a technical research and engineering service.\n\n## Tone\nDirect and precise.\n\n## Focus\nSystems architecture, infrastructure, and software engineering.\n\n## Approach\nAnalyse thoroughly before recommending. Cite sources when possible.",
+		Slug:         "helper",
+		Name:         "Helper",
+		Tagline:      "A helpful assistant",
+		AvatarEmoji:  "\U0001F916",
+		SystemPrompt: "## Identity\nYou are Helper, a general-purpose assistant.\n\n## Tone\nDirect and precise.\n\n## Focus\nHelping users with tasks.\n\n## Approach\nAnalyse thoroughly before recommending.",
 		Greeting:     "What are we working on?",
 		DefaultModel: "qwen3:32b",
 		Think:        &think,
@@ -54,7 +54,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 	agent := testAgent()
 	prompt := BuildSystemPrompt(agent)
 
-	expected := "## Identity\nYou are Aurelia, a technical research and engineering service.\n\n## Tone\nDirect and precise.\n\n## Focus\nSystems architecture, infrastructure, and software engineering.\n\n## Approach\nAnalyse thoroughly before recommending. Cite sources when possible."
+	expected := "## Identity\nYou are Helper, a general-purpose assistant.\n\n## Tone\nDirect and precise.\n\n## Focus\nHelping users with tasks.\n\n## Approach\nAnalyse thoroughly before recommending."
 	if prompt != expected {
 		t.Errorf("unexpected system prompt:\ngot:  %q\nwant: %q", prompt, expected)
 	}
@@ -192,8 +192,8 @@ func TestListAgentsHandler(t *testing.T) {
 	if len(summaries) != 1 {
 		t.Fatalf("expected 1 agent, got %d", len(summaries))
 	}
-	if summaries[0].Slug != "aurelia" {
-		t.Errorf("expected slug aurelia, got %s", summaries[0].Slug)
+	if summaries[0].Slug != "helper" {
+		t.Errorf("expected slug helper, got %s", summaries[0].Slug)
 	}
 }
 
@@ -228,9 +228,9 @@ func TestGetAgentHandler(t *testing.T) {
 	store := testStoreWithAgents(t, testAgent())
 	handler := &agentDetailHandler{store: store}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/agents/aurelia", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agents/helper", nil)
 	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", "aurelia")
+	req.SetPathValue("slug", "helper")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -243,8 +243,8 @@ func TestGetAgentHandler(t *testing.T) {
 		t.Fatalf("failed to decode: %v", err)
 	}
 
-	if resp.Slug != "aurelia" {
-		t.Errorf("expected slug aurelia, got %s", resp.Slug)
+	if resp.Slug != "helper" {
+		t.Errorf("expected slug helper, got %s", resp.Slug)
 	}
 	if resp.Greeting != "What are we working on?" {
 		t.Errorf("expected greeting 'What are we working on?', got %s", resp.Greeting)
@@ -277,9 +277,9 @@ func TestSaveAgentHandler(t *testing.T) {
 
 	agent := testAgent()
 	body, _ := json.Marshal(agent)
-	req := httptest.NewRequest(http.MethodPut, "/api/agents/aurelia", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/agents/helper", bytes.NewReader(body))
 	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", "aurelia")
+	req.SetPathValue("slug", "helper")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -287,12 +287,12 @@ func TestSaveAgentHandler(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	saved, err := store.GetAgentByUser("default_user", "aurelia")
+	saved, err := store.GetAgentByUser("default_user", "helper")
 	if err != nil {
 		t.Fatalf("expected agent to be stored: %v", err)
 	}
-	if saved.Name != "Aurelia" {
-		t.Errorf("expected name Aurelia, got %s", saved.Name)
+	if saved.Name != testAgent().Name {
+		t.Errorf("expected name %s, got %s", testAgent().Name, saved.Name)
 	}
 
 	var resp AgentDetailResponse
@@ -309,9 +309,9 @@ func TestSaveAgentHandler_SlugMismatch(t *testing.T) {
 	agent := testAgent()
 	agent.Slug = "different"
 	body, _ := json.Marshal(agent)
-	req := httptest.NewRequest(http.MethodPut, "/api/agents/aurelia", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/agents/helper", bytes.NewReader(body))
 	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", "aurelia")
+	req.SetPathValue("slug", "helper")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -329,9 +329,9 @@ func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 	highTemp := 5.0
 	agent.Temperature = &highTemp
 	body, _ := json.Marshal(agent)
-	req := httptest.NewRequest(http.MethodPut, "/api/agents/aurelia", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/agents/helper", bytes.NewReader(body))
 	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", "aurelia")
+	req.SetPathValue("slug", "helper")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -339,7 +339,7 @@ func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	saved, _ := store.GetAgentByUser("default_user", "aurelia")
+	saved, _ := store.GetAgentByUser("default_user", "helper")
 	if saved.Temperature == nil || *saved.Temperature != 2.0 {
 		t.Errorf("expected temperature clamped to 2.0, got %v", saved.Temperature)
 	}
@@ -349,9 +349,9 @@ func TestDeleteAgentHandler(t *testing.T) {
 	store := testStoreWithAgents(t, testAgent())
 	handler := &agentDeleteHandler{store: store}
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/agents/aurelia", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/agents/helper", nil)
 	req = withUserID(req, "default_user")
-	req.SetPathValue("slug", "aurelia")
+	req.SetPathValue("slug", "helper")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -359,7 +359,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Errorf("expected 204, got %d", w.Code)
 	}
 
-	_, err := store.GetAgentByUser("default_user", "aurelia")
+	_, err := store.GetAgentByUser("default_user", "helper")
 	if err == nil {
 		t.Error("expected agent to be deleted")
 	}
@@ -408,7 +408,7 @@ func TestGetAgentHandler_IncludesBaseImageURL(t *testing.T) {
 	store.SetBaseImage(agent.UserID, agent.Slug, "img-1")
 
 	handler := &agentDetailHandler{store: store}
-	req := httptest.NewRequest(http.MethodGet, "/api/agents/aurelia", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agents/helper", nil)
 	req = withUserID(req, "default_user")
 	req.SetPathValue("slug", agent.Slug)
 	w := httptest.NewRecorder()

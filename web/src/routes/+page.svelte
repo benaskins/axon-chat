@@ -21,7 +21,7 @@
   <MenuButton />
 </div>
 <div class="home">
-  <h1>Aurelia Studio</h1>
+  <h1>Axon Chat</h1>
 
   {#if loading}
     <div class="empty-state"><p>Loading agents...</p></div>

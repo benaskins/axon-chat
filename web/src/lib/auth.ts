@@ -18,7 +18,7 @@ export async function checkAuth(): Promise<{ user_id: string } | null> {
 }
 
 export function redirectToLogin() {
-	const authURL = 'https://auth.studio.internal/login';
+	const authURL = (window as any).__AUTH_URL__ || '/login';
 	const redirectParam = encodeURIComponent(window.location.href);
 	window.location.href = `${authURL}?redirect=${redirectParam}`;
 }

@@ -252,7 +252,7 @@
       <h2 class="section-heading">Basics</h2>
       <div class="field">
         <label for="name">Name {#if !isNew && slug}<span class="slug-label">/{slug}</span>{/if}</label>
-        <input id="name" type="text" bind:value={name} placeholder="Aurelia" required />
+        <input id="name" type="text" bind:value={name} placeholder="My Agent" required />
       </div>
       <div class="field-row">
         <div class="field">

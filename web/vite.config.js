@@ -5,11 +5,11 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 export default defineConfig({
   plugins: [sveltekit(), basicSsl()],
   server: {
-    host: 'dev.chat.studio.internal',
+    host: 'localhost',
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://chat.studio.internal',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false
       }
