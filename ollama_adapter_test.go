@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	agent "github.com/benaskins/axon-agent"
+	tool "github.com/benaskins/axon-tool"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
@@ -99,6 +100,98 @@ func TestOllamaAdapter_ToolCallsTranslated(t *testing.T) {
 	}
 	if toolCalls[0].Arguments["query"] != "test" {
 		t.Errorf("tool arg query = %v, want %q", toolCalls[0].Arguments["query"], "test")
+	}
+}
+
+func TestOllamaAdapter_ToolDefsConverted(t *testing.T) {
+	stub := &stubOllamaClient{
+		responses: []ollamaapi.ChatResponse{
+			{Message: ollamaapi.Message{Content: "ok"}, Done: true},
+		},
+	}
+
+	adapter := NewOllamaAdapter(stub)
+	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+		Model:    "test",
+		Messages: []agent.Message{{Role: "user", Content: "time?"}},
+		Tools: []tool.ToolDef{
+			{
+				Name:        "current_time",
+				Description: "Get the current time",
+				Parameters: tool.ParameterSchema{
+					Type:       "object",
+					Required:   []string{},
+					Properties: map[string]tool.PropertySchema{},
+				},
+			},
+		},
+	}, func(resp agent.ChatResponse) error {
+		return nil
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stub.lastReq.Tools) != 1 {
+		t.Fatalf("expected 1 tool in Ollama request, got %d", len(stub.lastReq.Tools))
+	}
+	if stub.lastReq.Tools[0].Function.Name != "current_time" {
+		t.Errorf("tool name = %q, want %q", stub.lastReq.Tools[0].Function.Name, "current_time")
+	}
+	if stub.lastReq.Tools[0].Function.Description != "Get the current time" {
+		t.Errorf("tool description = %q, want %q", stub.lastReq.Tools[0].Function.Description, "Get the current time")
+	}
+}
+
+func TestOllamaAdapter_ToolDefsWithParameters(t *testing.T) {
+	stub := &stubOllamaClient{
+		responses: []ollamaapi.ChatResponse{
+			{Message: ollamaapi.Message{Content: "ok"}, Done: true},
+		},
+	}
+
+	adapter := NewOllamaAdapter(stub)
+	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+		Model:    "test",
+		Messages: []agent.Message{{Role: "user", Content: "search"}},
+		Tools: []tool.ToolDef{
+			{
+				Name:        "web_search",
+				Description: "Search the web",
+				Parameters: tool.ParameterSchema{
+					Type:     "object",
+					Required: []string{"query"},
+					Properties: map[string]tool.PropertySchema{
+						"query": {Type: "string", Description: "The search query"},
+					},
+				},
+			},
+		},
+	}, func(resp agent.ChatResponse) error {
+		return nil
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stub.lastReq.Tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(stub.lastReq.Tools))
+	}
+
+	params := stub.lastReq.Tools[0].Function.Parameters
+	if params.Type != "object" {
+		t.Errorf("params type = %q, want %q", params.Type, "object")
+	}
+	if len(params.Required) != 1 || params.Required[0] != "query" {
+		t.Errorf("required = %v, want [query]", params.Required)
+	}
+
+	queryProp, ok := params.Properties.Get("query")
+	if !ok {
+		t.Fatal("expected 'query' property")
+	}
+	if queryProp.Description != "The search query" {
+		t.Errorf("query description = %q, want %q", queryProp.Description, "The search query")
 	}
 }
 

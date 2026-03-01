@@ -4,6 +4,7 @@ import (
 	"context"
 
 	agent "github.com/benaskins/axon-agent"
+	tool "github.com/benaskins/axon-tool"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
@@ -33,6 +34,10 @@ func (a *OllamaAdapter) Chat(ctx context.Context, req *agent.ChatRequest, fn fun
 
 	if req.Options != nil {
 		ollamaReq.Options = req.Options
+	}
+
+	if len(req.Tools) > 0 {
+		ollamaReq.Tools = toOllamaToolDefs(req.Tools)
 	}
 
 	return a.client.Chat(ctx, ollamaReq, func(resp ollamaapi.ChatResponse) error {
@@ -87,6 +92,33 @@ func fromOllamaResponse(resp ollamaapi.ChatResponse) agent.ChatResponse {
 	}
 
 	return result
+}
+
+// toOllamaToolDefs converts axon-tool ToolDefs to Ollama tool definitions.
+func toOllamaToolDefs(defs []tool.ToolDef) ollamaapi.Tools {
+	tools := make(ollamaapi.Tools, len(defs))
+	for i, d := range defs {
+		props := ollamaapi.NewToolPropertiesMap()
+		for name, prop := range d.Parameters.Properties {
+			props.Set(name, ollamaapi.ToolProperty{
+				Type:        ollamaapi.PropertyType{prop.Type},
+				Description: prop.Description,
+			})
+		}
+		tools[i] = ollamaapi.Tool{
+			Type: "function",
+			Function: ollamaapi.ToolFunction{
+				Name:        d.Name,
+				Description: d.Description,
+				Parameters: ollamaapi.ToolFunctionParameters{
+					Type:       d.Parameters.Type,
+					Required:   d.Parameters.Required,
+					Properties: props,
+				},
+			},
+		}
+	}
+	return tools
 }
 
 // fromOllamaToolCalls converts Ollama tool calls to agent tool calls.
