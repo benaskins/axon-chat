@@ -36,9 +36,18 @@ func (a *OllamaAdapter) Chat(ctx context.Context, req *agent.ChatRequest, fn fun
 		ollamaReq.Options = req.Options
 	}
 
+	if req.Think != nil {
+		tv := ollamaapi.ThinkValue{Value: *req.Think}
+		ollamaReq.Think = &tv
+	}
+
 	if len(req.Tools) > 0 {
 		ollamaReq.Tools = toOllamaToolDefs(req.Tools)
 	}
+
+	// Keep model loaded indefinitely
+	keepAlive := ollamaapi.Duration{Duration: -1}
+	ollamaReq.KeepAlive = &keepAlive
 
 	return a.client.Chat(ctx, ollamaReq, func(resp ollamaapi.ChatResponse) error {
 		return fn(fromOllamaResponse(resp))

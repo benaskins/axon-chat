@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
+	agent "github.com/benaskins/axon-agent"
+	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
-	streamfilter "github.com/benaskins/axon/stream"
 
-	"github.com/google/uuid"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -64,6 +64,7 @@ type chatRequest struct {
 type chatHandler struct {
 	defaultModel    string
 	client          ChatClient
+	adapter         *OllamaAdapter
 	imageStore      *ImageStore
 	store           Store
 	promptMerger    *PromptMerger
@@ -76,7 +77,6 @@ type chatHandler struct {
 	weather         WeatherProvider
 	pageFetcher     *PageFetcher
 	searchQualifier *SearchQualifier
-	tools           map[string]*ToolDef
 	pollInterval    time.Duration
 }
 
@@ -91,7 +91,9 @@ func newChatHandler(defaultModel string, client ChatClient, imageStore *ImageSto
 		bgTasks:      &sync.WaitGroup{},
 		eventBus:     eventBus,
 	}
-	h.registerTools()
+	if client != nil {
+		h.adapter = NewOllamaAdapter(client)
+	}
 	return h
 }
 
@@ -141,18 +143,7 @@ func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tools := h.buildToolsForSkills(req.Skills)
-
-	// Use tool router to filter tools based on user message
-	if h.toolRouter != nil && len(tools) > 0 && userContent != "" {
-		routed, err := h.toolRouter.Route(r.Context(), userContent, tools)
-		if err != nil {
-			slog.Warn("tool router error, proceeding without tools", "error", err)
-		}
-		tools = routed
-	}
-
-	h.streamChat(w, r, model, req.Messages, req.Think, req.Options, tools, req.ConversationID, userContent, req.AgentSlug)
+	h.runAgent(w, r, model, req.Messages, req.Think, req.Options, req.Skills, req.ConversationID, userContent, req.AgentSlug)
 }
 
 // SSETaskEvent represents a task submission event sent to the frontend.
@@ -175,7 +166,7 @@ type sseEvent struct {
 	Task            *SSETaskEvent `json:"task,omitempty"`
 }
 
-func (h *chatHandler) streamChat(w http.ResponseWriter, r *http.Request, model string, messages []ollamaapi.Message, think *bool, options map[string]any, tools ollamaapi.Tools, conversationID string, userContent string, agentSlug string) {
+func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model string, messages []ollamaapi.Message, think *bool, options map[string]any, skills []string, conversationID string, userContent string, agentSlug string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		axon.WriteError(w, http.StatusInternalServerError, "streaming not supported")
@@ -186,6 +177,7 @@ func (h *chatHandler) streamChat(w http.ResponseWriter, r *http.Request, model s
 
 	start := time.Now()
 	var tokenCount float64
+	var imageRefs []map[string]string
 
 	sendEvent := func(event sseEvent) {
 		data, err := json.Marshal(event)
@@ -196,188 +188,88 @@ func (h *chatHandler) streamChat(w http.ResponseWriter, r *http.Request, model s
 		flusher.Flush()
 	}
 
-	// Track final assistant output across tool-calling iterations
-	var finalContent strings.Builder
-	var finalThinking strings.Builder
-	var imageRefs []map[string]string
+	// Convert Ollama messages to agent messages
+	agentMessages := ollamaMessagesToAgent(messages)
 
-	// Build stream filter matchers — tool call detection when tools are available
-	var matchers []streamfilter.Matcher
-	if len(tools) > 0 {
-		matchers = append(matchers, streamfilter.NewToolCallMatcher())
+	// Extract system prompt for tool context
+	var systemPrompt string
+	if len(agentMessages) > 0 && agentMessages[0].Role == "system" {
+		systemPrompt = agentMessages[0].Content
 	}
 
-	// Tool calling loop — may iterate multiple times if model uses tools
-	keepAlive := ollamaapi.Duration{Duration: -1} // keep model loaded indefinitely
-	for {
-		stream := true
-		ollamaReq := &ollamaapi.ChatRequest{
-			Model:     model,
-			Messages:  messages,
-			Stream:    &stream,
-			Options:   options,
-			Tools:     tools,
-			KeepAlive: &keepAlive,
+	// Build tool map from skills
+	tools := h.buildToolMap(skills, sendEvent, &imageRefs, r, agentSlug, conversationID, systemPrompt)
+
+	// Use tool router to filter tools based on user message
+	if h.toolRouter != nil && len(tools) > 0 && userContent != "" {
+		toolDefs := toolDefsFromMap(tools)
+		routed, err := h.toolRouter.Route(r.Context(), userContent, toolDefsToOllama(toolDefs))
+		if err != nil {
+			slog.Warn("tool router error, proceeding with all tools", "error", err)
+		} else {
+			tools = filterToolMap(tools, routed)
 		}
-		if think != nil {
-			tv := ollamaapi.ThinkValue{Value: *think}
-			ollamaReq.Think = &tv
-		}
+	}
 
-		var assistantContent strings.Builder
-		var assistantThinking string
-		var toolCalls []ollamaapi.ToolCall
-		var streamKilled bool
+	// Build the agent request
+	agentReq := &agent.ChatRequest{
+		Model:    model,
+		Messages: agentMessages,
+		Stream:   true,
+		Think:    think,
+		Options:  options,
+	}
 
-		// Stream filter: small lookahead buffer that scans for tool call JSON
-		// and content safety patterns, emitting tokens with a fixed delay.
-		filter := streamfilter.NewStreamFilter(func(s string) {
-			sendEvent(sseEvent{Content: s})
-		}, matchers, streamfilter.DefaultMaxBuffer)
+	// Build tool context
+	userID := axon.UserID(r.Context())
+	username := axon.Username(r.Context())
+	toolCtx := &tool.ToolContext{
+		Ctx:            r.Context(),
+		UserID:         userID,
+		Username:       username,
+		AgentSlug:      agentSlug,
+		ConversationID: conversationID,
+		SystemPrompt:   systemPrompt,
+	}
 
-		err := h.client.Chat(r.Context(), ollamaReq, func(resp ollamaapi.ChatResponse) error {
-			// Thinking tokens bypass the filter
-			if resp.Message.Thinking != "" {
-				assistantThinking += resp.Message.Thinking
-				if !resp.Done {
-					sendEvent(sseEvent{Thinking: resp.Message.Thinking})
-				}
-			}
-
-			// Structured tool calls from Ollama handled directly
-			if len(resp.Message.ToolCalls) > 0 {
-				toolCalls = append(toolCalls, resp.Message.ToolCalls...)
-			}
-
-			if resp.Message.Content != "" {
-				assistantContent.WriteString(resp.Message.Content)
-				tokenCount++
-			}
-			if resp.Message.Thinking != "" {
-				tokenCount++
-			}
-
-			// Don't forward done from inside the callback
-			if resp.Done {
-				return nil
-			}
-
-			// Feed content through the stream filter
-			if resp.Message.Content != "" {
-				action := filter.Write(resp.Message.Content)
-				switch a := action.(type) {
-				case streamfilter.ToolCallAction:
-					toolCalls = append(toolCalls, convertToolCalls(a.Calls)...)
-				case streamfilter.KillAction:
-					streamKilled = true
-					slog.Warn("stream killed by filter", "reason", a.Reason)
-					return fmt.Errorf("stream killed: %s", a.Reason)
-				}
-			}
-
-			return nil
-		})
-
-		if err != nil && !streamKilled {
-			chatRequestsTotal.WithLabelValues(model, "error").Inc()
-			slog.Error("ollama chat error", "error", err, "model", model)
-			sendEvent(sseEvent{Content: "Error: " + err.Error(), Done: true})
-			return
-		}
-
-		if streamKilled {
-			sendEvent(sseEvent{Content: "\n\nI need to stop here.", Done: true})
-			return
-		}
-
-		// Flush remaining buffer — may detect tool calls in final content
-		action := filter.Flush()
-		switch a := action.(type) {
-		case streamfilter.ToolCallAction:
-			toolCalls = append(toolCalls, convertToolCalls(a.Calls)...)
-		case streamfilter.KillAction:
-			slog.Warn("stream killed on flush", "reason", a.Reason)
-			sendEvent(sseEvent{Content: "\n\nI need to stop here.", Done: true})
-			return
-		}
-
-		content := assistantContent.String()
-		// If tool calls were extracted from content, don't count the JSON as content
-		if len(toolCalls) > 0 {
-			content = ""
-		}
-
-		finalContent.WriteString(content)
-		finalThinking.WriteString(assistantThinking)
-
-		// If no tool calls, we're done
-		if len(toolCalls) == 0 {
-			break
-		}
-
-		// Append assistant message with tool calls to history
-		assistantMsg := ollamaapi.Message{
-			Role:      "assistant",
-			Content:   assistantContent.String(),
-			Thinking:  assistantThinking,
-			ToolCalls: toolCalls,
-		}
-		messages = append(messages, assistantMsg)
-
-		// Execute each tool call via registry
-		userID := axon.UserID(r.Context())
-		// Extract system prompt from message history for tool context
-		var systemPromptForTools string
-		if len(messages) > 0 && messages[0].Role == "system" {
-			systemPromptForTools = messages[0].Content
-		}
-		username := axon.Username(r.Context())
-		toolCtx := ToolContext{
-			Handler:        h,
-			Request:        r,
-			AgentSlug:      agentSlug,
-			ConversationID: conversationID,
-			UserID:         userID,
-			Username:       username,
-			SystemPrompt:   systemPromptForTools,
-			SendEvent:      sendEvent,
-			ImageRefs:      &imageRefs,
-		}
-
-		for _, tc := range toolCalls {
-			// Send a human-readable description of the tool call as content
-			desc := describeToolCall(tc)
+	// Wire callbacks to SSE
+	cb := agent.Callbacks{
+		OnToken: func(token string) {
+			tokenCount++
+			sendEvent(sseEvent{Content: token})
+		},
+		OnThinking: func(token string) {
+			tokenCount++
+			sendEvent(sseEvent{Thinking: token})
+		},
+		OnToolUse: func(name string, args map[string]any) {
+			desc := describeToolUse(name, args)
 			if desc != "" {
 				sendEvent(sseEvent{Content: desc})
 			}
-			sendEvent(sseEvent{ToolUse: tc.Function.Name})
-
-			if tool, ok := h.tools[tc.Function.Name]; ok {
-				result := tool.Execute(&toolCtx, tc.Function.Arguments)
-				messages = append(messages, ollamaapi.Message{
-					Role:    "tool",
-					Content: result.Content,
-				})
-			} else {
-				slog.Warn("unknown tool called", "tool", tc.Function.Name)
-				messages = append(messages, ollamaapi.Message{
-					Role:    "tool",
-					Content: fmt.Sprintf("Error: unknown tool %q", tc.Function.Name),
-				})
-			}
-		}
-
-		// Continue the loop — model will generate follow-up text
+			sendEvent(sseEvent{ToolUse: name})
+		},
+		OnDone: func(durationMs int64) {
+			sendEvent(sseEvent{Done: true, TotalDurationMs: &durationMs})
+		},
 	}
 
-	doneMs := time.Since(start).Milliseconds()
-	sendEvent(sseEvent{Done: true, TotalDurationMs: &doneMs})
+	// Run the conversation loop
+	result, err := agent.Run(r.Context(), h.adapter, agentReq, tools, toolCtx, cb)
+	if err != nil {
+		chatRequestsTotal.WithLabelValues(model, "error").Inc()
+		slog.Error("agent run error", "error", err, "model", model)
+		sendEvent(sseEvent{Content: "Error: " + err.Error(), Done: true})
+		return
+	}
 
+	// Metrics
 	duration := time.Since(start).Seconds()
 	chatDuration.WithLabelValues(model).Observe(duration)
 	chatRequestsTotal.WithLabelValues(model, "ok").Inc()
 	chatTokensTotal.WithLabelValues(model).Add(tokenCount)
 
+	// Persist
 	if conversationID != "" && h.store != nil {
 		durationMs := time.Since(start).Milliseconds()
 
@@ -388,8 +280,8 @@ func (h *chatHandler) streamChat(w http.ResponseWriter, r *http.Request, model s
 
 		assistantMsg := Message{
 			Role:       "assistant",
-			Content:    finalContent.String(),
-			Thinking:   finalThinking.String(),
+			Content:    result.Content,
+			Thinking:   result.Thinking,
 			DurationMs: &durationMs,
 		}
 		if len(imageRefs) > 0 {
@@ -398,16 +290,82 @@ func (h *chatHandler) streamChat(w http.ResponseWriter, r *http.Request, model s
 		}
 		h.store.AppendMessage(conversationID, assistantMsg)
 
-		userID := axon.UserID(r.Context())
 		conv, err := h.store.GetConversationByUser(userID, conversationID)
 		if err == nil && conv.Title == nil {
 			h.bgTasks.Add(1)
 			go func() {
 				defer h.bgTasks.Done()
-				h.generateTitle(h.shutdownCtx, userID, conversationID, userContent, finalContent.String())
+				h.generateTitle(h.shutdownCtx, userID, conversationID, userContent, result.Content)
 			}()
 		}
 	}
+}
+
+// ollamaMessagesToAgent converts Ollama messages to agent messages.
+func ollamaMessagesToAgent(msgs []ollamaapi.Message) []agent.Message {
+	result := make([]agent.Message, len(msgs))
+	for i, m := range msgs {
+		result[i] = agent.Message{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+	}
+	return result
+}
+
+// describeToolUse returns a human-readable description of a tool call.
+func describeToolUse(name string, args map[string]any) string {
+	switch name {
+	case "web_search":
+		if q, ok := args["query"].(string); ok {
+			return fmt.Sprintf("\n\n*Searching for \"%s\"...*\n\n", q)
+		}
+		return "\n\n*Searching the web...*\n\n"
+	case "fetch_page":
+		if u, ok := args["url"].(string); ok {
+			return fmt.Sprintf("\n\n*Reading %s...*\n\n", u)
+		}
+		return "\n\n*Reading a web page...*\n\n"
+	case "take_photo":
+		return "\n\n*Taking a photo...*\n\n"
+	case "check_weather":
+		if loc, ok := args["location"].(string); ok {
+			return fmt.Sprintf("\n\n*Checking weather for %s...*\n\n", loc)
+		}
+		return "\n\n*Checking the weather...*\n\n"
+	case "current_time":
+		return "\n\n*Checking the time...*\n\n"
+	case "use_claude":
+		return "\n\n*Submitting a code change...*\n\n"
+	default:
+		return fmt.Sprintf("\n\n*Using %s...*\n\n", name)
+	}
+}
+
+// toolDefsFromMap extracts ToolDef slice from a map.
+func toolDefsFromMap(m map[string]tool.ToolDef) []tool.ToolDef {
+	defs := make([]tool.ToolDef, 0, len(m))
+	for _, d := range m {
+		defs = append(defs, d)
+	}
+	return defs
+}
+
+// toolDefsToOllama converts tool.ToolDef to Ollama tools for the ToolRouter.
+func toolDefsToOllama(defs []tool.ToolDef) ollamaapi.Tools {
+	return toOllamaToolDefs(defs)
+}
+
+// filterToolMap returns a subset of tools matching the routed Ollama tools.
+func filterToolMap(all map[string]tool.ToolDef, routed ollamaapi.Tools) map[string]tool.ToolDef {
+	result := make(map[string]tool.ToolDef)
+	for _, t := range routed {
+		name := t.Function.Name
+		if def, ok := all[name]; ok {
+			result[name] = def
+		}
+	}
+	return result
 }
 
 func (h *chatHandler) generateTitle(shutdownCtx context.Context, userID string, conversationID string, userMsg string, assistantMsg string) {
@@ -458,86 +416,6 @@ func sanitizeTitle(raw string) string {
 	s = strings.TrimPrefix(s, "**")
 	s = strings.TrimSuffix(s, "**")
 	return strings.TrimSpace(s)
-}
-
-// submitImageTask merges the prompt, encodes the reference image, and submits
-// an image generation task to the task runner. Returns a ToolResult for the calling tool.
-func (h *chatHandler) submitImageTask(ctx *ToolContext, promptStr string, private bool) ToolResult {
-	imageID := uuid.New().String()
-
-	// Merge prompt using LLM if merger is available
-	finalPrompt := promptStr
-	if h.promptMerger != nil {
-		var recentMessages []Message
-		if ctx.ConversationID != "" && h.store != nil {
-			if msgs, err := h.store.GetRecentMessages(ctx.ConversationID, 5); err == nil {
-				recentMessages = msgs
-			}
-		}
-
-		var merged string
-		var err error
-		if private {
-			merged, err = h.promptMerger.MergePromptPrivate(ctx.SystemPrompt, recentMessages, promptStr)
-		} else {
-			merged, err = h.promptMerger.MergePrompt(ctx.SystemPrompt, recentMessages, promptStr)
-		}
-		if err == nil {
-			finalPrompt = merged
-		} else {
-			slog.Warn("prompt merge failed, using raw scene prompt", "error", err)
-		}
-	}
-
-	// Load and base64-encode reference image for face consistency
-	var refImageB64 string
-	if ctx.AgentSlug != "" && h.store != nil && h.imageStore != nil {
-		if baseImg, err := h.store.GetBaseImageByUser(ctx.UserID, ctx.AgentSlug); err == nil && baseImg != nil {
-			if imgData, err := h.imageStore.Load(baseImg.ID); err == nil {
-				refImageB64 = base64Encode(imgData)
-			} else {
-				slog.Warn("failed to load base image", "error", err, "base_image_id", baseImg.ID)
-			}
-		}
-	}
-
-	// Submit to task runner
-	submission := &ImageTaskSubmission{
-		Prompt:         finalPrompt,
-		ReferenceImage: refImageB64,
-		AgentSlug:      ctx.AgentSlug,
-		UserID:         ctx.UserID,
-		ConversationID: ctx.ConversationID,
-		ImageID:        imageID,
-		Private:        private,
-	}
-
-	_, err := h.taskRunner.SubmitTask(context.Background(), NewImageTaskRequest(submission))
-	if err != nil {
-		slog.Error("failed to submit image task", "error", err, "image_id", imageID)
-		return ToolResult{Content: "Error: failed to submit image generation task"}
-	}
-
-	// Notify UI only after successful submission
-	ctx.SendEvent(sseEvent{Task: &SSETaskEvent{
-		TaskID:      imageID,
-		Type:        "image_generation",
-		Status:      "running",
-		Description: "Generating image...",
-	}})
-
-	// Poll for completion in background (same pattern as use_claude tasks)
-	h.bgTasks.Add(1)
-	go func() {
-		defer h.bgTasks.Done()
-		h.pollTaskCompletion(imageID)
-	}()
-
-	pipelineLabel := "Image"
-	if private {
-		pipelineLabel = "Image (private pipeline)"
-	}
-	return ToolResult{Content: fmt.Sprintf("%s generation started, it will appear shortly.", pipelineLabel)}
 }
 
 // pollTaskCompletion polls the task runner for a task's status and publishes an event when done.
@@ -614,53 +492,3 @@ func base64Encode(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
-// convertToolCalls converts provider-agnostic streamfilter.ToolCall to ollamaapi.ToolCall.
-func convertToolCalls(calls []streamfilter.ToolCall) []ollamaapi.ToolCall {
-	result := make([]ollamaapi.ToolCall, len(calls))
-	for i, tc := range calls {
-		args := ollamaapi.NewToolCallFunctionArguments()
-		for k, v := range tc.Arguments {
-			args.Set(k, v)
-		}
-		result[i] = ollamaapi.ToolCall{
-			Function: ollamaapi.ToolCallFunction{
-				Name:      tc.Name,
-				Arguments: args,
-			},
-		}
-	}
-	return result
-}
-
-// describeToolCall returns a human-readable description of a tool call
-// that can be shown to the user as an agent message.
-func describeToolCall(tc ollamaapi.ToolCall) string {
-	name := tc.Function.Name
-	args := tc.Function.Arguments
-
-	switch name {
-	case "web_search":
-		if q, ok := args.Get("query"); ok {
-			return fmt.Sprintf("\n\n*Searching for \"%v\"...*\n\n", q)
-		}
-		return "\n\n*Searching the web...*\n\n"
-	case "fetch_page":
-		if u, ok := args.Get("url"); ok {
-			return fmt.Sprintf("\n\n*Reading %v...*\n\n", u)
-		}
-		return "\n\n*Reading a web page...*\n\n"
-	case "take_photo":
-		return "\n\n*Taking a photo...*\n\n"
-	case "check_weather":
-		if loc, ok := args.Get("location"); ok {
-			return fmt.Sprintf("\n\n*Checking weather for %v...*\n\n", loc)
-		}
-		return "\n\n*Checking the weather...*\n\n"
-	case "current_time":
-		return "\n\n*Checking the time...*\n\n"
-	case "use_claude":
-		return "\n\n*Submitting a code change...*\n\n"
-	default:
-		return fmt.Sprintf("\n\n*Using %s...*\n\n", name)
-	}
-}

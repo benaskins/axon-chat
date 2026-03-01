@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	ollamaapi "github.com/ollama/ollama/api"
 )
 
 func TestChatEndpoint_InvalidMethod(t *testing.T) {
@@ -59,6 +62,56 @@ func TestChatEndpoint_NoClient(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
 	}
+}
+
+func TestChatEndpoint_StreamsViaAgentRun(t *testing.T) {
+	mockClient := &mockStreamClient{
+		responses: []ollamaapi.ChatResponse{
+			{Message: ollamaapi.Message{Content: "Hello "}, Done: false},
+			{Message: ollamaapi.Message{Content: "there!"}, Done: true},
+		},
+	}
+
+	handler := newChatHandler("test-model", mockClient, nil, nil, nil, context.Background(), nil)
+
+	body, _ := json.Marshal(chatRequest{
+		Messages: []ollamaapi.Message{{Role: "user", Content: "Hi"}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Should have SSE content-type
+	ct := w.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+
+	// Body should contain SSE data frames with content
+	respBody := w.Body.String()
+	if !strings.Contains(respBody, "Hello ") {
+		t.Errorf("response body should contain 'Hello ', got:\n%s", respBody)
+	}
+	if !strings.Contains(respBody, `"done":true`) {
+		t.Errorf("response body should contain done event, got:\n%s", respBody)
+	}
+}
+
+type mockStreamClient struct {
+	responses []ollamaapi.ChatResponse
+}
+
+func (m *mockStreamClient) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+	for _, resp := range m.responses {
+		if err := fn(resp); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestSanitizeTitle(t *testing.T) {
