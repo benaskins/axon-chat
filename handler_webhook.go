@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -18,9 +17,8 @@ type userCreatedRequest struct {
 }
 
 func (h *userCreatedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req userCreatedRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		axon.WriteError(w, http.StatusBadRequest, "invalid request body")
+	req, ok := axon.DecodeJSON[userCreatedRequest](w, r)
+	if !ok {
 		return
 	}
 
