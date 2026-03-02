@@ -1,13 +1,13 @@
 package chat
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/benaskins/axon"
 )
 
 // TaskRunner submits tasks to the task runner service.
@@ -58,127 +58,51 @@ type TaskStatus struct {
 
 // TaskRunnerClient is an HTTP client for the task runner service.
 type TaskRunnerClient struct {
-	baseURL    string
-	httpClient *http.Client
+	client *axon.InternalClient
 }
 
 // NewTaskRunnerClient creates a client pointing at the task runner service.
 // Pass a non-nil tlsConfig to enable mTLS; nil uses default (plain HTTP for tests).
 func NewTaskRunnerClient(baseURL string, tlsConfig *tls.Config) *TaskRunnerClient {
-	client := &http.Client{Timeout: 10 * time.Second}
+	c := axon.NewInternalClient(baseURL)
 	if tlsConfig != nil {
-		client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
+		c.HTTPClient = &http.Client{
+			Timeout:   10 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		}
 	}
-	return &TaskRunnerClient{
-		baseURL:    baseURL,
-		httpClient: client,
-	}
+	return &TaskRunnerClient{client: c}
 }
 
 func (c *TaskRunnerClient) SubmitTask(ctx context.Context, submitReq *TaskSubmitRequest) (*TaskSubmission, error) {
-	body, err := json.Marshal(submitReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/tasks", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("task runner request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusAccepted {
-		var errResp map[string]string
-		json.NewDecoder(resp.Body).Decode(&errResp)
-		return nil, fmt.Errorf("task runner returned %d: %s", resp.StatusCode, errResp["error"])
-	}
-
 	var sub TaskSubmission
-	if err := json.NewDecoder(resp.Body).Decode(&sub); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.client.Post(ctx, "/api/tasks", submitReq, &sub); err != nil {
+		return nil, fmt.Errorf("submit task: %w", err)
 	}
 	return &sub, nil
 }
 
 func (c *TaskRunnerClient) GetTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/tasks/"+taskID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("task runner request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("task runner returned %d", resp.StatusCode)
-	}
-
 	var status TaskStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.client.Get(ctx, "/api/tasks/"+taskID, &status); err != nil {
+		return nil, fmt.Errorf("get task status: %w", err)
 	}
 	return &status, nil
 }
 
 func (c *TaskRunnerClient) ListTasks(ctx context.Context, agentSlug string, limit, offset int) ([]TaskStatus, error) {
-	reqURL := fmt.Sprintf("%s/api/tasks?agent=%s&limit=%d&offset=%d", c.baseURL, agentSlug, limit, offset)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("task runner request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("task runner returned %d", resp.StatusCode)
-	}
-
+	path := fmt.Sprintf("/api/tasks?agent=%s&limit=%d&offset=%d", agentSlug, limit, offset)
 	var tasks []TaskStatus
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	if err := c.client.Get(ctx, path, &tasks); err != nil {
+		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 	return tasks, nil
 }
 
 func (c *TaskRunnerClient) IssueAgentCert(ctx context.Context, slug, username string) error {
-	body, err := json.Marshal(map[string]string{
-		"slug":     slug,
-		"username": username,
-	})
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+	body := map[string]string{"slug": slug, "username": username}
+	if err := c.client.Post(ctx, "/api/agent-certs", body, nil); err != nil {
+		return fmt.Errorf("issue agent cert: %w", err)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/agent-certs", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("task runner request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errResp map[string]string
-		json.NewDecoder(resp.Body).Decode(&errResp)
-		return fmt.Errorf("cert issuance returned %d: %s", resp.StatusCode, errResp["error"])
-	}
-
 	return nil
 }
