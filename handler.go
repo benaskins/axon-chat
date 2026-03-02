@@ -74,6 +74,7 @@ type chatHandler struct {
 	weather         WeatherProvider
 	pageFetcher     *PageFetcher
 	searchQualifier *SearchQualifier
+	extraTools      map[string]tool.ToolDef
 	pollInterval    time.Duration
 }
 

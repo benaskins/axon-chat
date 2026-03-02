@@ -35,6 +35,9 @@ func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), r *http.
 	case "use_claude":
 		return h.useClaudeTool(sendEvent, r, agentSlug, conversationID), true
 	default:
+		if def, ok := h.extraTools[skill]; ok {
+			return def, true
+		}
 		return tool.ToolDef{}, false
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/benaskins/axon"
+	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
 )
 
@@ -24,6 +25,11 @@ type Server struct {
 	Weather         WeatherProvider
 	PageFetcher     *PageFetcher
 	SearchQualifier *SearchQualifier
+
+	// ExtraTools are additional tool definitions registered by the composition root.
+	// They are included in the tool map alongside built-in tools when the agent
+	// has the matching skill enabled.
+	ExtraTools map[string]tool.ToolDef
 }
 
 // NewServer creates a chat server with required dependencies.
@@ -54,6 +60,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	s.chat.weather = s.Weather
 	s.chat.pageFetcher = s.PageFetcher
 	s.chat.searchQualifier = s.SearchQualifier
+	s.chat.extraTools = s.ExtraTools
 
 	mux := http.NewServeMux()
 
