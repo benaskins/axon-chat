@@ -81,6 +81,18 @@ func (s *MemoryStore) GetAgentByUser(userID, slug string) (*chat.Agent, error) {
 	return &cp, nil
 }
 
+func (s *MemoryStore) GetAgentBySlug(slug string) (*chat.Agent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, a := range s.agents {
+		if a.Slug == slug {
+			cp := a
+			return &cp, nil
+		}
+	}
+	return nil, fmt.Errorf("agent not found")
+}
+
 func (s *MemoryStore) SaveAgent(agent chat.Agent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -145,6 +145,18 @@ func (s *Server) UserCreatedHandler() http.Handler {
 	return &userCreatedHandler{store: s.chat.store, defaultModel: s.config.DefaultModel}
 }
 
+// InternalMessagesHandler returns an http.Handler for fetching conversation messages
+// without auth, for internal service-to-service calls.
+func (s *Server) InternalMessagesHandler() http.Handler {
+	return &internalMessagesHandler{store: s.chat.store}
+}
+
+// InternalAgentHandler returns an http.Handler for fetching agent info by slug
+// without auth, for internal service-to-service calls.
+func (s *Server) InternalAgentHandler() http.Handler {
+	return &internalAgentHandler{store: s.chat.store}
+}
+
 // WaitForBackgroundTasks blocks until all background tasks complete.
 func (s *Server) WaitForBackgroundTasks() {
 	s.chat.WaitForBackgroundTasks()

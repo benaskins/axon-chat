@@ -11,6 +11,7 @@ type Store interface {
 	// Agents
 	ListAgentsByUser(userID string) ([]AgentSummary, error)
 	GetAgentByUser(userID, slug string) (*Agent, error)
+	GetAgentBySlug(slug string) (*Agent, error)
 	SaveAgent(agent Agent) error
 	DeleteAgent(userID, slug string) error
 
