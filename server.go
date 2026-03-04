@@ -5,6 +5,7 @@ import (
 	"embed"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/benaskins/axon"
 	tool "github.com/benaskins/axon-tool"
@@ -28,6 +29,9 @@ type Server struct {
 
 	// MemoryRecaller provides memory recall for the recall_memory tool.
 	MemoryRecaller MemoryRecaller
+
+	// MemoryExtractor triggers memory extraction for idle conversations.
+	MemoryExtractor MemoryExtractor
 
 	// ExtraTools are additional tool definitions registered by the composition root.
 	// They are included in the tool map alongside built-in tools when the agent
@@ -64,6 +68,9 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	s.chat.pageFetcher = s.PageFetcher
 	s.chat.searchQualifier = s.SearchQualifier
 	s.chat.memoryRecaller = s.MemoryRecaller
+	if s.MemoryExtractor != nil {
+		s.chat.idleExtractor = NewIdleExtractor(s.chat.shutdownCtx, s.MemoryExtractor, 1*time.Hour)
+	}
 	s.chat.extraTools = s.ExtraTools
 
 	mux := http.NewServeMux()

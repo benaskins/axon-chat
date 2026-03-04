@@ -76,6 +76,7 @@ type chatHandler struct {
 	searchQualifier *SearchQualifier
 	extraTools      map[string]tool.ToolDef
 	memoryRecaller  MemoryRecaller
+	idleExtractor   *IdleExtractor
 	pollInterval    time.Duration
 }
 
@@ -279,6 +280,10 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 		}
 		h.store.AppendMessage(conversationID, assistantMsg)
 
+		if h.idleExtractor != nil && agentSlug != "" {
+			h.idleExtractor.Touch(conversationID, agentSlug, userID)
+		}
+
 		conv, err := h.store.GetConversationByUser(userID, conversationID)
 		if err == nil && conv.Title == nil {
 			h.bgTasks.Add(1)
@@ -470,7 +475,11 @@ func dayOrNight(isDay bool) string {
 }
 
 // WaitForBackgroundTasks blocks until all background tasks complete.
+// Also flushes any pending idle extractions.
 func (h *chatHandler) WaitForBackgroundTasks() {
+	if h.idleExtractor != nil {
+		h.idleExtractor.FlushAll()
+	}
 	h.bgTasks.Wait()
 }
 
