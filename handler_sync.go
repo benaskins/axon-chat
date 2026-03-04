@@ -140,6 +140,18 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	durationMs := time.Since(start).Milliseconds()
 
+	// Analytics
+	if h.chat.analytics != nil && req.AgentSlug != "" {
+		events := []AnalyticsEvent{
+			MessageEvent(req.AgentSlug, userID, req.ConversationID, "user", 0),
+			MessageEvent(req.AgentSlug, userID, req.ConversationID, "assistant", durationMs),
+		}
+		for _, t := range toolsUsed {
+			events = append(events, ToolInvocationEvent(req.AgentSlug, userID, req.ConversationID, t, true, 0))
+		}
+		h.chat.analytics.Emit(events...)
+	}
+
 	if toolsUsed == nil {
 		toolsUsed = []string{}
 	}
