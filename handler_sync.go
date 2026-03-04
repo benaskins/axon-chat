@@ -142,12 +142,17 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Analytics
 	if h.chat.analytics != nil && req.AgentSlug != "" {
-		events := []AnalyticsEvent{
-			MessageEvent(req.AgentSlug, userID, req.ConversationID, "user", 0),
-			MessageEvent(req.AgentSlug, userID, req.ConversationID, "assistant", durationMs),
-		}
+		runID := axon.RunID(r.Context())
+		userEvt := MessageEvent(req.AgentSlug, userID, req.ConversationID, "user", 0)
+		userEvt.RunID = runID
+		assistantEvt := MessageEvent(req.AgentSlug, userID, req.ConversationID, "assistant", durationMs)
+		assistantEvt.RunID = runID
+
+		events := []AnalyticsEvent{userEvt, assistantEvt}
 		for _, t := range toolsUsed {
-			events = append(events, ToolInvocationEvent(req.AgentSlug, userID, req.ConversationID, t, true, 0))
+			evt := ToolInvocationEvent(req.AgentSlug, userID, req.ConversationID, t, true, 0)
+			evt.RunID = runID
+			events = append(events, evt)
 		}
 		h.chat.analytics.Emit(events...)
 	}

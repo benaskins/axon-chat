@@ -6,10 +6,32 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
+	"github.com/benaskins/axon"
 	ollamaapi "github.com/ollama/ollama/api"
 )
+
+// spyAnalytics captures emitted analytics events for testing.
+type spyAnalytics struct {
+	mu     sync.Mutex
+	events []AnalyticsEvent
+}
+
+func (s *spyAnalytics) Emit(events ...AnalyticsEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, events...)
+}
+
+func (s *spyAnalytics) Events() []AnalyticsEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]AnalyticsEvent, len(s.events))
+	copy(out, s.events)
+	return out
+}
 
 func TestSyncChatEndpoint_InvalidMethod(t *testing.T) {
 	handler := &syncChatHandler{chat: newChatHandler(testModel, nil, nil, context.Background(), nil)}
@@ -102,6 +124,45 @@ func TestSyncChatEndpoint_TracksToolUse(t *testing.T) {
 	}
 	if len(result.ToolsUsed) != 1 || result.ToolsUsed[0] != "check_weather" {
 		t.Errorf("ToolsUsed = %v, want [check_weather]", result.ToolsUsed)
+	}
+}
+
+func TestSyncChatEndpoint_PropagatesRunID(t *testing.T) {
+	mockClient := &mockStreamClient{
+		responses: []ollamaapi.ChatResponse{
+			{Message: ollamaapi.Message{Content: "Hi"}, Done: true},
+		},
+	}
+
+	spy := &spyAnalytics{}
+	chat := newChatHandler("test-model", mockClient, nil, context.Background(), nil)
+	chat.analytics = spy
+
+	handler := axon.MetaHeaders(&syncChatHandler{chat: chat})
+
+	body, _ := json.Marshal(chatRequest{
+		AgentSlug: "xagent",
+		Messages:  []ollamaapi.Message{{Role: "user", Content: "Hi"}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
+	req.Header.Set("X-Axon-Run-Id", "run-test-123")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	events := spy.Events()
+	if len(events) == 0 {
+		t.Fatal("expected analytics events, got none")
+	}
+
+	for _, ev := range events {
+		if ev.RunID != "run-test-123" {
+			t.Errorf("expected run_id 'run-test-123' on %s event, got %q", ev.Type, ev.RunID)
+		}
 	}
 }
 

@@ -267,10 +267,12 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	// Analytics
 	durationMs := time.Since(start).Milliseconds()
 	if h.analytics != nil && agentSlug != "" {
-		h.analytics.Emit(
-			MessageEvent(agentSlug, userID, conversationID, "user", 0),
-			MessageEvent(agentSlug, userID, conversationID, "assistant", durationMs),
-		)
+		runID := axon.RunID(r.Context())
+		userEvt := MessageEvent(agentSlug, userID, conversationID, "user", 0)
+		userEvt.RunID = runID
+		assistantEvt := MessageEvent(agentSlug, userID, conversationID, "assistant", durationMs)
+		assistantEvt.RunID = runID
+		h.analytics.Emit(userEvt, assistantEvt)
 	}
 
 	// Persist
