@@ -90,8 +90,15 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 		axon.WriteJSON(w, http.StatusOK, map[string]string{"user_id": axon.UserID(r.Context()), "username": axon.Username(r.Context())})
 	})))
 
-	// Protected API routes
-	models := &modelsHandler{lister: s.chat.client.(ModelLister)}
+	// Protected API routes — models endpoint requires ModelLister support
+	var modelsRoute http.Handler
+	if lister, ok := s.chat.client.(ModelLister); ok {
+		modelsRoute = auth(&modelsHandler{lister: lister})
+	} else {
+		modelsRoute = auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			axon.WriteError(w, http.StatusNotImplemented, "model listing not supported")
+		}))
+	}
 
 	agentsList := &agentsListHandler{store: s.chat.store}
 	agentDetail := &agentDetailHandler{store: s.chat.store}
@@ -105,7 +112,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 	mux.Handle("/api/chat/sync", auth(&syncChatHandler{chat: s.chat}))
 	mux.Handle("/api/chat", auth(s.chat))
-	mux.Handle("/api/models", auth(models))
+	mux.Handle("/api/models", modelsRoute)
 	mux.Handle("GET /api/agents/{slug}", auth(agentDetail))
 	mux.Handle("PUT /api/agents/{slug}", auth(agentSave))
 	mux.Handle("DELETE /api/agents/{slug}", auth(agentDelete))

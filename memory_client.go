@@ -68,9 +68,17 @@ func (c *MemoryClient) RecallMemories(ctx context.Context, agentSlug, userID, qu
 func (c *MemoryClient) ExtractMemories(ctx context.Context, conversationID, agentSlug, userID string) error {
 	u := c.baseURL + "/api/memory/extract"
 
-	body := fmt.Sprintf(`{"conversation_id":%q,"agent_slug":%q,"user_id":%q}`, conversationID, agentSlug, userID)
+	payload := map[string]string{
+		"conversation_id": conversationID,
+		"agent_slug":      agentSlug,
+		"user_id":         userID,
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, strings.NewReader(string(bodyBytes)))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

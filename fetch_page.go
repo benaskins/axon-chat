@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	readability "github.com/go-shiori/go-readability"
@@ -27,6 +28,7 @@ const (
 type PageFetcher struct {
 	client    *http.Client
 	llmClient ChatClient
+	mu        sync.Mutex
 	lastFetch time.Time
 }
 
@@ -44,13 +46,17 @@ func NewPageFetcher(llmClient ChatClient) *PageFetcher {
 // to pull out the parts relevant to the given question.
 func (f *PageFetcher) FetchAndExtract(ctx context.Context, rawURL, question string) (string, error) {
 	// Rate limit: wait between fetches
+	f.mu.Lock()
 	if !f.lastFetch.IsZero() {
 		elapsed := time.Since(f.lastFetch)
 		if elapsed < fetchDelayBetween {
+			f.mu.Unlock()
 			time.Sleep(fetchDelayBetween - elapsed)
+			f.mu.Lock()
 		}
 	}
 	f.lastFetch = time.Now()
+	f.mu.Unlock()
 
 	// Fetch
 	body, err := f.fetchPage(ctx, rawURL)

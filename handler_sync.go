@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -88,7 +89,9 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.chat.toolRouter != nil && len(tools) > 0 && userContent != "" {
 		toolDefs := toolDefsFromMap(tools)
 		routed, err := h.chat.toolRouter.Route(r.Context(), userContent, toolDefsToOllama(toolDefs))
-		if err == nil {
+		if err != nil {
+			slog.Warn("tool router error, proceeding with all tools", "error", err)
+		} else {
 			tools = filterToolMap(tools, routed)
 		}
 	}
@@ -97,7 +100,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	agentReq := &agent.ChatRequest{
 		Model:    model,
 		Messages: agentMessages,
-		Stream:   true,
+		Stream:   false,
 		Think:    req.Think,
 		Options:  req.Options,
 	}
@@ -134,9 +137,16 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	_, err := agent.Run(r.Context(), h.chat.adapter, agentReq, tools, toolCtx, cb)
 	if err != nil {
+		chatRequestsTotal.WithLabelValues(model, "error").Inc()
 		axon.WriteError(w, http.StatusInternalServerError, "agent error: "+err.Error())
 		return
 	}
+
+	// Metrics
+	duration := time.Since(start).Seconds()
+	chatDuration.WithLabelValues(model).Observe(duration)
+	chatRequestsTotal.WithLabelValues(model, "ok").Inc()
+	chatTokensTotal.WithLabelValues(model).Add(float64(content.Len()))
 
 	durationMs := time.Since(start).Milliseconds()
 

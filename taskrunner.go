@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/benaskins/axon"
@@ -91,7 +92,7 @@ func (c *TaskRunnerClient) GetTaskStatus(ctx context.Context, taskID string) (*T
 }
 
 func (c *TaskRunnerClient) ListTasks(ctx context.Context, agentSlug string, limit, offset int) ([]TaskStatus, error) {
-	path := fmt.Sprintf("/api/tasks?agent=%s&limit=%d&offset=%d", agentSlug, limit, offset)
+	path := fmt.Sprintf("/api/tasks?agent=%s&limit=%d&offset=%d", url.QueryEscape(agentSlug), limit, offset)
 	var tasks []TaskStatus
 	if err := c.client.Get(ctx, path, &tasks); err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
