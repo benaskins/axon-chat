@@ -34,6 +34,8 @@ func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), r *http.
 		return h.checkWeatherTool(r), true
 	case "use_claude":
 		return h.useClaudeTool(sendEvent, r, agentSlug, conversationID), true
+	case "recall_memory":
+		return h.recallMemoryTool(), true
 	default:
 		if def, ok := h.extraTools[skill]; ok {
 			return def, true
@@ -201,6 +203,66 @@ func (h *chatHandler) useClaudeTool(sendEvent func(sseEvent), r *http.Request, a
 	}
 }
 
+func (h *chatHandler) recallMemoryTool() tool.ToolDef {
+	return tool.ToolDef{
+		Name:        "recall_memory",
+		Description: "Search your memory for past conversations, experiences, and knowledge about the user. Use when the user mentions something you don't recall, references a previous conversation, or when context from past interactions would help you respond better.",
+		Parameters: tool.ParameterSchema{
+			Type:     "object",
+			Required: []string{"query"},
+			Properties: map[string]tool.PropertySchema{
+				"query": {Type: "string", Description: "What to search your memory for — a topic, event, feeling, or fact from past interactions."},
+			},
+		},
+		Execute: func(ctx *tool.ToolContext, args map[string]any) tool.ToolResult {
+			queryStr, _ := args["query"].(string)
+			if h.memoryRecaller == nil {
+				return tool.ToolResult{Content: "Memory recall is not available."}
+			}
+			if queryStr == "" {
+				return tool.ToolResult{Content: "Error: query is required."}
+			}
+
+			resp, err := h.memoryRecaller.RecallMemories(ctx.Ctx, ctx.AgentSlug, ctx.UserID, queryStr, 5)
+			if err != nil {
+				slog.Error("memory recall failed", "error", err, "query", queryStr)
+				return tool.ToolResult{Content: fmt.Sprintf("Memory recall failed: %v", err)}
+			}
+
+			return tool.ToolResult{Content: formatMemoryResponse(resp)}
+		},
+	}
+}
+
+func formatMemoryResponse(resp *MemoryRecallResponse) string {
+	if len(resp.Memories) == 0 {
+		return "No memories found for this query."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Recalled Memories\n\n")
+
+	for i, m := range resp.Memories {
+		sb.WriteString(fmt.Sprintf("%d. [%s] %s", i+1, m.Type, m.Content))
+		if m.EmotionalContext != "" {
+			sb.WriteString(fmt.Sprintf(" (emotions: %s)", m.EmotionalContext))
+		}
+		sb.WriteString(fmt.Sprintf(" [importance: %.0f%%]\n", m.Importance*100))
+	}
+
+	if rc := resp.RelationshipContext; rc != nil {
+		sb.WriteString("\n## Relationship State\n")
+		sb.WriteString(fmt.Sprintf("Trust: %.0f%% | Intimacy: %.0f%% | Autonomy: %.0f%%\n", rc.Trust*100, rc.Intimacy*100, rc.Autonomy*100))
+		sb.WriteString(fmt.Sprintf("Reciprocity: %.0f%% | Playfulness: %.0f%% | Conflict: %.0f%%\n", rc.Reciprocity*100, rc.Playfulness*100, rc.Conflict*100))
+		sb.WriteString(fmt.Sprintf("Total conversations: %d | Total memories: %d\n", rc.TotalConversations, rc.TotalMemories))
+		if rc.PersonalityContext != "" {
+			sb.WriteString(fmt.Sprintf("\n## Personality Context\n%s\n", rc.PersonalityContext))
+		}
+	}
+
+	return sb.String()
+}
+
 // SkillInfo describes an available skill for the frontend.
 type SkillInfo struct {
 	ID          string `json:"id"`
@@ -215,6 +277,7 @@ var AvailableSkills = []SkillInfo{
 	{ID: "use_claude", Label: "Use Claude", Description: "request code changes to itself"},
 	{ID: "current_time", Label: "Current Time", Description: "tell the current date and time"},
 	{ID: "check_weather", Label: "Check Weather", Description: "check current weather conditions for a location"},
+	{ID: "recall_memory", Label: "Recall Memory", Description: "search past conversations and memories"},
 }
 
 // BuildToolsForAgent returns the Ollama tool definitions for an agent's enabled skills.

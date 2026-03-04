@@ -75,6 +75,7 @@ type chatHandler struct {
 	pageFetcher     *PageFetcher
 	searchQualifier *SearchQualifier
 	extraTools      map[string]tool.ToolDef
+	memoryRecaller  MemoryRecaller
 	pollInterval    time.Duration
 }
 

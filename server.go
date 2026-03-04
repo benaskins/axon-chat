@@ -26,6 +26,9 @@ type Server struct {
 	PageFetcher     *PageFetcher
 	SearchQualifier *SearchQualifier
 
+	// MemoryRecaller provides memory recall for the recall_memory tool.
+	MemoryRecaller MemoryRecaller
+
 	// ExtraTools are additional tool definitions registered by the composition root.
 	// They are included in the tool map alongside built-in tools when the agent
 	// has the matching skill enabled.
@@ -60,6 +63,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	s.chat.weather = s.Weather
 	s.chat.pageFetcher = s.PageFetcher
 	s.chat.searchQualifier = s.SearchQualifier
+	s.chat.memoryRecaller = s.MemoryRecaller
 	s.chat.extraTools = s.ExtraTools
 
 	mux := http.NewServeMux()

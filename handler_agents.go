@@ -37,6 +37,8 @@ func BuildSystemPrompt(a Agent) string {
 			parts = append(parts, "## Clock\nYou can check the current time. Use it when the user asks what time or date it is.")
 		case "check_weather":
 			parts = append(parts, "## Weather\nYou can check current weather conditions for any location. Use it when the user asks about the weather, temperature, or conditions somewhere.")
+		case "recall_memory":
+			parts = append(parts, "## Memory\nYou have a long-term memory that persists across conversations. Use the recall_memory tool when the user mentions something you don't recall, references a past conversation, or when remembering previous context would help you respond better. Your memory includes relationship metrics that reflect how your relationship with this user has evolved over time.")
 		}
 	}
 
