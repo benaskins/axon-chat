@@ -47,16 +47,18 @@ func NewPageFetcher(llmClient ChatClient) *PageFetcher {
 func (f *PageFetcher) FetchAndExtract(ctx context.Context, rawURL, question string) (string, error) {
 	// Rate limit: wait between fetches
 	f.mu.Lock()
+	var wait time.Duration
 	if !f.lastFetch.IsZero() {
 		elapsed := time.Since(f.lastFetch)
 		if elapsed < fetchDelayBetween {
-			f.mu.Unlock()
-			time.Sleep(fetchDelayBetween - elapsed)
-			f.mu.Lock()
+			wait = fetchDelayBetween - elapsed
 		}
 	}
-	f.lastFetch = time.Now()
+	f.lastFetch = time.Now().Add(wait)
 	f.mu.Unlock()
+	if wait > 0 {
+		time.Sleep(wait)
+	}
 
 	// Fetch
 	body, err := f.fetchPage(ctx, rawURL)
