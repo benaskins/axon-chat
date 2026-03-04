@@ -157,6 +157,35 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.chat.analytics.Emit(events...)
 	}
 
+	// Persist messages — same as streaming handler
+	if req.ConversationID != "" && h.chat.store != nil {
+		h.chat.store.AppendMessage(req.ConversationID, Message{
+			Role:    "user",
+			Content: userContent,
+		})
+
+		assistantMsg := Message{
+			Role:       "assistant",
+			Content:    content.String(),
+			Thinking:   thinking.String(),
+			DurationMs: &durationMs,
+		}
+		h.chat.store.AppendMessage(req.ConversationID, assistantMsg)
+
+		if h.chat.idleExtractor != nil && req.AgentSlug != "" {
+			h.chat.idleExtractor.Touch(req.ConversationID, req.AgentSlug, userID)
+		}
+
+		conv, err := h.chat.store.GetConversationByUser(userID, req.ConversationID)
+		if err == nil && conv.Title == nil {
+			h.chat.bgTasks.Add(1)
+			go func() {
+				defer h.chat.bgTasks.Done()
+				h.chat.generateTitle(h.chat.shutdownCtx, userID, req.ConversationID, userContent, content.String())
+			}()
+		}
+	}
+
 	if toolsUsed == nil {
 		toolsUsed = []string{}
 	}

@@ -166,6 +166,52 @@ func TestSyncChatEndpoint_PropagatesRunID(t *testing.T) {
 	}
 }
 
+func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
+	mockClient := &mockStreamClient{
+		responses: []ollamaapi.ChatResponse{
+			{Message: ollamaapi.Message{Content: "I'm great!"}, Done: true},
+		},
+	}
+
+	store := newMemoryStore()
+	store.CreateUser("test-user")
+	store.SaveAgent(Agent{UserID: "test-user", Slug: "helper", Name: "Helper"})
+	conv, _ := store.CreateConversationForUser("test-user", "helper")
+
+	chat := newChatHandler("test-model", mockClient, store, context.Background(), nil)
+	handler := &syncChatHandler{chat: chat}
+
+	body, _ := json.Marshal(chatRequest{
+		AgentSlug:      "helper",
+		ConversationID: conv.ID,
+		Messages:       []ollamaapi.Message{{Role: "user", Content: "How are you?"}},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
+	ctx := context.WithValue(req.Context(), axon.UserIDKey, "test-user")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Should have persisted both user and assistant messages
+	msgs, err := store.GetMessages(conv.ID)
+	if err != nil {
+		t.Fatalf("GetMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 persisted messages, got %d", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "How are you?" {
+		t.Errorf("user message: role=%q content=%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "I'm great!" {
+		t.Errorf("assistant message: role=%q content=%q", msgs[1].Role, msgs[1].Content)
+	}
+}
+
 // mockToolClient simulates a tool call then a final response.
 type mockToolClient struct {
 	toolName     string
