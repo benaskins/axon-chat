@@ -33,6 +33,9 @@ type Server struct {
 	// MemoryExtractor triggers memory extraction for idle conversations.
 	MemoryExtractor MemoryExtractor
 
+	// Analytics emits analytics events to the analytics service.
+	Analytics AnalyticsEmitter
+
 	// ExtraTools are additional tool definitions registered by the composition root.
 	// They are included in the tool map alongside built-in tools when the agent
 	// has the matching skill enabled.
@@ -72,6 +75,11 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 		s.chat.idleExtractor = NewIdleExtractor(s.chat.shutdownCtx, s.MemoryExtractor, 1*time.Hour)
 	}
 	s.chat.extraTools = s.ExtraTools
+	if s.Analytics != nil {
+		s.chat.analytics = s.Analytics
+	} else {
+		s.chat.analytics = NoopAnalytics{}
+	}
 
 	mux := http.NewServeMux()
 

@@ -77,6 +77,7 @@ type chatHandler struct {
 	extraTools      map[string]tool.ToolDef
 	memoryRecaller  MemoryRecaller
 	idleExtractor   *IdleExtractor
+	analytics       AnalyticsEmitter
 	pollInterval    time.Duration
 }
 
@@ -263,10 +264,17 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	chatRequestsTotal.WithLabelValues(model, "ok").Inc()
 	chatTokensTotal.WithLabelValues(model).Add(tokenCount)
 
+	// Analytics
+	durationMs := time.Since(start).Milliseconds()
+	if h.analytics != nil && agentSlug != "" {
+		h.analytics.Emit(
+			MessageEvent(agentSlug, userID, conversationID, "user", 0),
+			MessageEvent(agentSlug, userID, conversationID, "assistant", durationMs),
+		)
+	}
+
 	// Persist
 	if conversationID != "" && h.store != nil {
-		durationMs := time.Since(start).Milliseconds()
-
 		h.store.AppendMessage(conversationID, Message{
 			Role:    "user",
 			Content: userContent,
