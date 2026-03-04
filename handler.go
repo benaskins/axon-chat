@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
-	agent "github.com/benaskins/axon-agent"
+	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
 
@@ -207,7 +207,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Build the agent request
-	agentReq := &agent.ChatRequest{
+	agentReq := &loop.ChatRequest{
 		Model:    model,
 		Messages: agentMessages,
 		Stream:   true,
@@ -228,7 +228,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Wire callbacks to SSE
-	cb := agent.Callbacks{
+	cb := loop.Callbacks{
 		OnToken: func(token string) {
 			tokenCount++
 			sendEvent(sseEvent{Content: token})
@@ -250,7 +250,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Run the conversation loop
-	result, err := agent.Run(r.Context(), h.adapter, agentReq, tools, toolCtx, cb)
+	result, err := loop.Run(r.Context(), h.adapter, agentReq, tools, toolCtx, cb)
 	if err != nil {
 		chatRequestsTotal.WithLabelValues(model, "error").Inc()
 		slog.Error("agent run error", "error", err, "model", model)
@@ -306,10 +306,10 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 }
 
 // ollamaMessagesToAgent converts Ollama messages to agent messages.
-func ollamaMessagesToAgent(msgs []ollamaapi.Message) []agent.Message {
-	result := make([]agent.Message, len(msgs))
+func ollamaMessagesToAgent(msgs []ollamaapi.Message) []loop.Message {
+	result := make([]loop.Message, len(msgs))
 	for i, m := range msgs {
-		result[i] = agent.Message{
+		result[i] = loop.Message{
 			Role:    m.Role,
 			Content: m.Content,
 		}

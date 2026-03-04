@@ -6,7 +6,7 @@ toolchain go1.24.13
 
 require (
 	github.com/benaskins/axon v0.1.0
-	github.com/benaskins/axon-agent v0.1.0
+	github.com/benaskins/axon-loop v0.1.0
 	github.com/benaskins/axon-tool v0.1.0
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
 	github.com/google/uuid v1.6.0
@@ -51,6 +51,6 @@ require (
 
 replace (
 	github.com/benaskins/axon => ../axon
-	github.com/benaskins/axon-agent => ../axon-agent
+	github.com/benaskins/axon-loop => ../axon-loop
 	github.com/benaskins/axon-tool => ../axon-tool
 )

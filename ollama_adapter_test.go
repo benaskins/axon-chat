@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	agent "github.com/benaskins/axon-agent"
+	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 	ollamaapi "github.com/ollama/ollama/api"
 )
@@ -34,11 +34,11 @@ func TestOllamaAdapter_BasicChat(t *testing.T) {
 	adapter := NewOllamaAdapter(stub)
 
 	var content string
-	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+	err := adapter.Chat(context.Background(), &loop.ChatRequest{
 		Model:    "llama3",
-		Messages: []agent.Message{{Role: "user", Content: "Hi"}},
+		Messages: []loop.Message{{Role: "user", Content: "Hi"}},
 		Stream:   true,
-	}, func(resp agent.ChatResponse) error {
+	}, func(resp loop.ChatResponse) error {
 		content += resp.Content
 		return nil
 	})
@@ -80,11 +80,11 @@ func TestOllamaAdapter_ToolCallsTranslated(t *testing.T) {
 
 	adapter := NewOllamaAdapter(stub)
 
-	var toolCalls []agent.ToolCall
-	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+	var toolCalls []loop.ToolCall
+	err := adapter.Chat(context.Background(), &loop.ChatRequest{
 		Model:    "test",
-		Messages: []agent.Message{{Role: "user", Content: "search"}},
-	}, func(resp agent.ChatResponse) error {
+		Messages: []loop.Message{{Role: "user", Content: "search"}},
+	}, func(resp loop.ChatResponse) error {
 		toolCalls = append(toolCalls, resp.ToolCalls...)
 		return nil
 	})
@@ -111,9 +111,9 @@ func TestOllamaAdapter_ToolDefsConverted(t *testing.T) {
 	}
 
 	adapter := NewOllamaAdapter(stub)
-	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+	err := adapter.Chat(context.Background(), &loop.ChatRequest{
 		Model:    "test",
-		Messages: []agent.Message{{Role: "user", Content: "time?"}},
+		Messages: []loop.Message{{Role: "user", Content: "time?"}},
 		Tools: []tool.ToolDef{
 			{
 				Name:        "current_time",
@@ -125,7 +125,7 @@ func TestOllamaAdapter_ToolDefsConverted(t *testing.T) {
 				},
 			},
 		},
-	}, func(resp agent.ChatResponse) error {
+	}, func(resp loop.ChatResponse) error {
 		return nil
 	})
 
@@ -151,9 +151,9 @@ func TestOllamaAdapter_ToolDefsWithParameters(t *testing.T) {
 	}
 
 	adapter := NewOllamaAdapter(stub)
-	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+	err := adapter.Chat(context.Background(), &loop.ChatRequest{
 		Model:    "test",
-		Messages: []agent.Message{{Role: "user", Content: "search"}},
+		Messages: []loop.Message{{Role: "user", Content: "search"}},
 		Tools: []tool.ToolDef{
 			{
 				Name:        "web_search",
@@ -167,7 +167,7 @@ func TestOllamaAdapter_ToolDefsWithParameters(t *testing.T) {
 				},
 			},
 		},
-	}, func(resp agent.ChatResponse) error {
+	}, func(resp loop.ChatResponse) error {
 		return nil
 	})
 
@@ -206,10 +206,10 @@ func TestOllamaAdapter_ThinkingTranslated(t *testing.T) {
 	adapter := NewOllamaAdapter(stub)
 
 	var thinking, content string
-	err := adapter.Chat(context.Background(), &agent.ChatRequest{
+	err := adapter.Chat(context.Background(), &loop.ChatRequest{
 		Model:    "test",
-		Messages: []agent.Message{{Role: "user", Content: "think"}},
-	}, func(resp agent.ChatResponse) error {
+		Messages: []loop.Message{{Role: "user", Content: "think"}},
+	}, func(resp loop.ChatResponse) error {
 		thinking += resp.Thinking
 		content += resp.Content
 		return nil

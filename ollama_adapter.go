@@ -3,25 +3,25 @@ package chat
 import (
 	"context"
 
-	agent "github.com/benaskins/axon-agent"
+	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
-// OllamaAdapter implements agent.ChatClient by translating to/from
+// OllamaAdapter implements loop.ChatClient by translating to/from
 // the Ollama API types. This is where the Ollama dependency concentrates.
 type OllamaAdapter struct {
 	client ChatClient
 }
 
-// NewOllamaAdapter wraps an Ollama ChatClient as an agent.ChatClient.
+// NewOllamaAdapter wraps an Ollama ChatClient as a loop.ChatClient.
 func NewOllamaAdapter(client ChatClient) *OllamaAdapter {
 	return &OllamaAdapter{client: client}
 }
 
-// Chat translates an agent.ChatRequest to an Ollama request, calls the
+// Chat translates a loop.ChatRequest to an Ollama request, calls the
 // underlying client, and translates responses back.
-func (a *OllamaAdapter) Chat(ctx context.Context, req *agent.ChatRequest, fn func(agent.ChatResponse) error) error {
+func (a *OllamaAdapter) Chat(ctx context.Context, req *loop.ChatRequest, fn func(loop.ChatResponse) error) error {
 	ollamaReq := &ollamaapi.ChatRequest{
 		Model:    req.Model,
 		Messages: toOllamaMessages(req.Messages),
@@ -55,7 +55,7 @@ func (a *OllamaAdapter) Chat(ctx context.Context, req *agent.ChatRequest, fn fun
 }
 
 // toOllamaMessages converts agent messages to Ollama messages.
-func toOllamaMessages(msgs []agent.Message) []ollamaapi.Message {
+func toOllamaMessages(msgs []loop.Message) []ollamaapi.Message {
 	result := make([]ollamaapi.Message, len(msgs))
 	for i, m := range msgs {
 		result[i] = ollamaapi.Message{
@@ -71,7 +71,7 @@ func toOllamaMessages(msgs []agent.Message) []ollamaapi.Message {
 }
 
 // toOllamaToolCalls converts agent tool calls to Ollama tool calls.
-func toOllamaToolCalls(calls []agent.ToolCall) []ollamaapi.ToolCall {
+func toOllamaToolCalls(calls []loop.ToolCall) []ollamaapi.ToolCall {
 	result := make([]ollamaapi.ToolCall, len(calls))
 	for i, tc := range calls {
 		args := ollamaapi.NewToolCallFunctionArguments()
@@ -89,8 +89,8 @@ func toOllamaToolCalls(calls []agent.ToolCall) []ollamaapi.ToolCall {
 }
 
 // fromOllamaResponse converts an Ollama response to an agent response.
-func fromOllamaResponse(resp ollamaapi.ChatResponse) agent.ChatResponse {
-	result := agent.ChatResponse{
+func fromOllamaResponse(resp ollamaapi.ChatResponse) loop.ChatResponse {
+	result := loop.ChatResponse{
 		Content:  resp.Message.Content,
 		Thinking: resp.Message.Thinking,
 		Done:     resp.Done,
@@ -131,10 +131,10 @@ func toOllamaToolDefs(defs []tool.ToolDef) ollamaapi.Tools {
 }
 
 // fromOllamaToolCalls converts Ollama tool calls to agent tool calls.
-func fromOllamaToolCalls(calls []ollamaapi.ToolCall) []agent.ToolCall {
-	result := make([]agent.ToolCall, len(calls))
+func fromOllamaToolCalls(calls []ollamaapi.ToolCall) []loop.ToolCall {
+	result := make([]loop.ToolCall, len(calls))
 	for i, tc := range calls {
-		result[i] = agent.ToolCall{
+		result[i] = loop.ToolCall{
 			Name:      tc.Function.Name,
 			Arguments: tc.Function.Arguments.ToMap(),
 		}

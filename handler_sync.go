@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
-	agent "github.com/benaskins/axon-agent"
+	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 )
 
@@ -97,7 +97,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build agent request
-	agentReq := &agent.ChatRequest{
+	agentReq := &loop.ChatRequest{
 		Model:    model,
 		Messages: agentMessages,
 		Stream:   false,
@@ -122,7 +122,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var thinking strings.Builder
 	var toolsUsed []string
 
-	cb := agent.Callbacks{
+	cb := loop.Callbacks{
 		OnToken: func(token string) {
 			content.WriteString(token)
 		},
@@ -135,7 +135,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OnDone: func(durationMs int64) {},
 	}
 
-	_, err := agent.Run(r.Context(), h.chat.adapter, agentReq, tools, toolCtx, cb)
+	_, err := loop.Run(r.Context(), h.chat.adapter, agentReq, tools, toolCtx, cb)
 	if err != nil {
 		chatRequestsTotal.WithLabelValues(model, "error").Inc()
 		axon.WriteError(w, http.StatusInternalServerError, "agent error: "+err.Error())
