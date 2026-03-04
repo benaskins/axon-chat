@@ -103,6 +103,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	convoGet := &conversationGetHandler{store: s.chat.store}
 	convoDelete := &conversationDeleteHandler{store: s.chat.store}
 
+	mux.Handle("/api/chat/sync", auth(&syncChatHandler{chat: s.chat}))
 	mux.Handle("/api/chat", auth(s.chat))
 	mux.Handle("/api/models", auth(models))
 	mux.Handle("GET /api/agents/{slug}", auth(agentDetail))
