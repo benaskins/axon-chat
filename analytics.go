@@ -17,6 +17,7 @@ type AnalyticsEvent struct {
 	AgentSlug        string    `json:"agent_slug,omitempty"`
 	UserID           string    `json:"user_id,omitempty"`
 	ConversationID   string    `json:"conversation_id,omitempty"`
+	RunID            string    `json:"run_id,omitempty"`
 	Role             string    `json:"role,omitempty"`
 	PromptTokens     uint32    `json:"prompt_tokens,omitempty"`
 	CompletionTokens uint32    `json:"completion_tokens,omitempty"`
