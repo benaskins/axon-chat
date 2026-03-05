@@ -77,7 +77,6 @@ Return a JSON object with a "tools" array containing the tool names to use. Use 
 Most messages need no tools. Only select a tool when the user's message clearly calls for it.
 - use_claude: ONLY when the user explicitly asks to change, modify, or fix something about the agent's code, UI, config, or behavior. Never for general conversation, topic changes, or compliments.
 - take_photo: ONLY when the user asks for an image or photo.
-- REMOVED_TOOL: ONLY when the user asks for a photo using the standard pipeline.
 - web_search: ONLY when the user asks to look something up or needs current information.
 - current_time: ONLY when the user asks what time or date it is.
 - check_weather: ONLY when the user asks about weather, temperature, or conditions for a location.
