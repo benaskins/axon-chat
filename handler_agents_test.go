@@ -91,10 +91,10 @@ func TestBuildSystemPrompt_EmptyFields(t *testing.T) {
 	}
 }
 
-func TestBuildSystemPrompt_WithSkills(t *testing.T) {
+func TestBuildSystemPrompt_WithTools(t *testing.T) {
 	agent := Agent{
 		SystemPrompt: "You are a helper.",
-		Skills:       []string{"web_search"},
+		Tools:        []string{"web_search"},
 	}
 	prompt := BuildSystemPrompt(agent)
 
@@ -106,7 +106,7 @@ func TestBuildSystemPrompt_WithSkills(t *testing.T) {
 func TestBuildSystemPrompt_EmptySystemPrompt(t *testing.T) {
 	agent := Agent{
 		Constraints: "Be kind.",
-		Skills:      []string{"current_time"},
+		Tools:       []string{"current_time"},
 	}
 	prompt := BuildSystemPrompt(agent)
 
@@ -121,7 +121,7 @@ func TestBuildSystemPrompt_EmptySystemPrompt(t *testing.T) {
 func TestBuildSystemPrompt_UseClaudeTransparency(t *testing.T) {
 	a := Agent{
 		SystemPrompt: "You are Hal.",
-		Skills:       []string{"use_claude"},
+		Tools:        []string{"use_claude"},
 	}
 	result := BuildSystemPrompt(a)
 
@@ -139,7 +139,7 @@ func TestBuildSystemPrompt_UseClaudeTransparency(t *testing.T) {
 func TestBuildSystemPrompt_CurrentTime(t *testing.T) {
 	a := Agent{
 		SystemPrompt: "You are Hal.",
-		Skills:       []string{"current_time"},
+		Tools:        []string{"current_time"},
 	}
 	result := BuildSystemPrompt(a)
 
@@ -345,9 +345,9 @@ func TestDeleteAgentHandler(t *testing.T) {
 	}
 }
 
-func TestAgentSkillsSerialization(t *testing.T) {
+func TestAgentToolsSerialization(t *testing.T) {
 	agent := testAgent()
-	agent.Skills = []string{"take_photo"}
+	agent.Tools = []string{"take_photo"}
 
 	data, err := json.Marshal(agent)
 	if err != nil {
@@ -359,12 +359,12 @@ func TestAgentSkillsSerialization(t *testing.T) {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
 
-	if len(decoded.Skills) != 1 || decoded.Skills[0] != "take_photo" {
-		t.Errorf("expected skills [take_photo], got %v", decoded.Skills)
+	if len(decoded.Tools) != 1 || decoded.Tools[0] != "take_photo" {
+		t.Errorf("expected tools [take_photo], got %v", decoded.Tools)
 	}
 }
 
-func TestAgentSkillsOmittedWhenEmpty(t *testing.T) {
+func TestAgentToolsOmittedWhenEmpty(t *testing.T) {
 	agent := testAgent()
 
 	data, err := json.Marshal(agent)
@@ -372,7 +372,7 @@ func TestAgentSkillsOmittedWhenEmpty(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	if strings.Contains(string(data), "skills") {
-		t.Error("expected skills to be omitted from JSON when empty")
+	if strings.Contains(string(data), "tools") {
+		t.Error("expected tools to be omitted from JSON when empty")
 	}
 }

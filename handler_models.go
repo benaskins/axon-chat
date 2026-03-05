@@ -17,7 +17,7 @@ func (h *modelsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.lister.List(r.Context())
+	models, err := h.lister.ListModels(r.Context())
 	if err != nil {
 		slog.Error("failed to list models", "error", err)
 		axon.WriteError(w, http.StatusBadGateway, "failed to list models")
@@ -28,10 +28,10 @@ func (h *modelsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 
-	models := make([]modelInfo, len(resp.Models))
-	for i, m := range resp.Models {
-		models[i] = modelInfo{Name: m.Name}
+	result := make([]modelInfo, len(models))
+	for i, name := range models {
+		result[i] = modelInfo{Name: name}
 	}
 
-	axon.WriteJSON(w, http.StatusOK, models)
+	axon.WriteJSON(w, http.StatusOK, result)
 }

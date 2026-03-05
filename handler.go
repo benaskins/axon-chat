@@ -15,7 +15,6 @@ import (
 	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
 
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -51,19 +50,18 @@ func init() {
 }
 
 type chatRequest struct {
-	Model          string              `json:"model"`
-	ConversationID string              `json:"conversation_id,omitempty"`
-	AgentSlug      string              `json:"agent_slug,omitempty"`
-	Messages       []ollamaapi.Message `json:"messages"`
-	Think          *bool               `json:"think,omitempty"`
-	Options        map[string]any      `json:"options,omitempty"`
-	Skills         []string            `json:"skills,omitempty"`
+	Model          string         `json:"model"`
+	ConversationID string         `json:"conversation_id,omitempty"`
+	AgentSlug      string         `json:"agent_slug,omitempty"`
+	Messages       []loop.Message `json:"messages"`
+	Think          *bool          `json:"think,omitempty"`
+	Options        map[string]any `json:"options,omitempty"`
+	Tools          []string       `json:"tools,omitempty"`
 }
 
 type chatHandler struct {
 	defaultModel    string
-	client          ChatClient
-	adapter         *OllamaAdapter
+	llm             loop.LLMClient
 	store           Store
 	shutdownCtx     context.Context
 	bgTasks         *sync.WaitGroup
@@ -81,19 +79,15 @@ type chatHandler struct {
 	pollInterval    time.Duration
 }
 
-func newChatHandler(defaultModel string, client ChatClient, store Store, shutdownCtx context.Context, eventBus *sse.EventBus[Event]) *chatHandler {
-	h := &chatHandler{
+func newChatHandler(defaultModel string, llm loop.LLMClient, store Store, shutdownCtx context.Context, eventBus *sse.EventBus[Event]) *chatHandler {
+	return &chatHandler{
 		defaultModel: defaultModel,
-		client:       client,
+		llm:          llm,
 		store:        store,
 		shutdownCtx:  shutdownCtx,
 		bgTasks:      &sync.WaitGroup{},
 		eventBus:     eventBus,
 	}
-	if client != nil {
-		h.adapter = NewOllamaAdapter(client)
-	}
-	return h
 }
 
 func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -128,8 +122,8 @@ func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		model = h.defaultModel
 	}
 
-	if h.client == nil {
-		axon.WriteError(w, http.StatusInternalServerError, "ollama client not configured")
+	if h.llm == nil {
+		axon.WriteError(w, http.StatusInternalServerError, "LLM client not configured")
 		return
 	}
 
@@ -142,7 +136,7 @@ func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.runAgent(w, r, model, req.Messages, req.Think, req.Options, req.Skills, req.ConversationID, userContent, req.AgentSlug)
+	h.runAgent(w, r, model, req.Messages, req.Think, req.Options, req.Tools, req.ConversationID, userContent, req.AgentSlug)
 }
 
 // SSETaskEvent represents a task submission event sent to the frontend.
@@ -162,7 +156,7 @@ type sseEvent struct {
 	Task            *SSETaskEvent `json:"task,omitempty"`
 }
 
-func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model string, messages []ollamaapi.Message, think *bool, options map[string]any, skills []string, conversationID string, userContent string, agentSlug string) {
+func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model string, messages []loop.Message, think *bool, options map[string]any, toolNames []string, conversationID string, userContent string, agentSlug string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		axon.WriteError(w, http.StatusInternalServerError, "streaming not supported")
@@ -183,33 +177,30 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 		flusher.Flush()
 	}
 
-	// Convert Ollama messages to agent messages
-	agentMessages := ollamaMessagesToAgent(messages)
-
 	// Extract system prompt for tool context
 	var systemPrompt string
-	if len(agentMessages) > 0 && agentMessages[0].Role == "system" {
-		systemPrompt = agentMessages[0].Content
+	if len(messages) > 0 && messages[0].Role == "system" {
+		systemPrompt = messages[0].Content
 	}
 
-	// Build tool map from skills
-	tools := h.buildToolMap(skills, sendEvent, r, agentSlug, conversationID, systemPrompt)
+	// Build tool map from requested tool names
+	tools := h.buildToolMap(toolNames, sendEvent, r, agentSlug, conversationID, systemPrompt)
 
 	// Use tool router to filter tools based on user message
 	if h.toolRouter != nil && len(tools) > 0 && userContent != "" {
 		toolDefs := toolDefsFromMap(tools)
-		routed, err := h.toolRouter.Route(r.Context(), userContent, toolDefsToOllama(toolDefs))
+		routed, err := h.toolRouter.Route(r.Context(), userContent, toolDefs)
 		if err != nil {
 			slog.Warn("tool router error, proceeding with all tools", "error", err)
 		} else {
-			tools = filterToolMap(tools, routed)
+			tools = filterToolNames(tools, routed)
 		}
 	}
 
 	// Build the agent request
-	agentReq := &loop.ChatRequest{
+	agentReq := &loop.Request{
 		Model:    model,
-		Messages: agentMessages,
+		Messages: messages,
 		Stream:   true,
 		Think:    think,
 		Options:  options,
@@ -250,7 +241,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Run the conversation loop
-	result, err := loop.Run(r.Context(), h.adapter, agentReq, tools, toolCtx, cb)
+	result, err := loop.Run(r.Context(), h.llm, agentReq, tools, toolCtx, cb)
 	if err != nil {
 		chatRequestsTotal.WithLabelValues(model, "error").Inc()
 		slog.Error("agent run error", "error", err, "model", model)
@@ -305,18 +296,6 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 }
 
-// ollamaMessagesToAgent converts Ollama messages to agent messages.
-func ollamaMessagesToAgent(msgs []ollamaapi.Message) []loop.Message {
-	result := make([]loop.Message, len(msgs))
-	for i, m := range msgs {
-		result[i] = loop.Message{
-			Role:    m.Role,
-			Content: m.Content,
-		}
-	}
-	return result
-}
-
 // describeToolUse returns a human-readable description of a tool call.
 func describeToolUse(name string, args map[string]any) string {
 	switch name {
@@ -353,16 +332,10 @@ func toolDefsFromMap(m map[string]tool.ToolDef) []tool.ToolDef {
 	return defs
 }
 
-// toolDefsToOllama converts tool.ToolDef to Ollama tools for the ToolRouter.
-func toolDefsToOllama(defs []tool.ToolDef) ollamaapi.Tools {
-	return toOllamaToolDefs(defs)
-}
-
-// filterToolMap returns a subset of tools matching the routed Ollama tools.
-func filterToolMap(all map[string]tool.ToolDef, routed ollamaapi.Tools) map[string]tool.ToolDef {
+// filterToolNames returns a subset of tools matching the routed tool names.
+func filterToolNames(all map[string]tool.ToolDef, routed []string) map[string]tool.ToolDef {
 	result := make(map[string]tool.ToolDef)
-	for _, t := range routed {
-		name := t.Function.Name
+	for _, name := range routed {
 		if def, ok := all[name]; ok {
 			result[name] = def
 		}
@@ -374,21 +347,19 @@ func (h *chatHandler) generateTitle(shutdownCtx context.Context, userID string, 
 	ctx, cancel := context.WithTimeout(shutdownCtx, 30*time.Second)
 	defer cancel()
 
-	titlePrompt := []ollamaapi.Message{
+	messages := []loop.Message{
 		{Role: "system", Content: "Generate a very short title (3-5 words) for this conversation. Respond with only the title, nothing else."},
 		{Role: "user", Content: userMsg},
 		{Role: "assistant", Content: assistantMsg},
 		{Role: "user", Content: "What is a good 3-5 word title for this conversation?"},
 	}
 
-	stream := false
 	var title strings.Builder
-	err := h.client.Chat(ctx, &ollamaapi.ChatRequest{
+	err := h.llm.Chat(ctx, &loop.Request{
 		Model:    h.defaultModel,
-		Messages: titlePrompt,
-		Stream:   &stream,
-	}, func(resp ollamaapi.ChatResponse) error {
-		title.WriteString(resp.Message.Content)
+		Messages: messages,
+	}, func(resp loop.Response) error {
+		title.WriteString(resp.Content)
 		return nil
 	})
 

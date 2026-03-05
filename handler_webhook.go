@@ -56,7 +56,7 @@ func CreateDefaultAgents(store Store, userID, defaultModel string) error {
 			AvatarEmoji:  "\U0001F916",
 			SystemPrompt: "You handle a wide range of questions and tasks.\n\nClear, direct, and accurate.",
 			DefaultModel: defaultModel,
-			Skills:       []string{},
+			Tools:       []string{},
 		},
 		{
 			UserID:       userID,
@@ -66,7 +66,7 @@ func CreateDefaultAgents(store Store, userID, defaultModel string) error {
 			AvatarEmoji:  "\u270D\uFE0F",
 			SystemPrompt: "You draft and edit long-form text — articles, documentation, proposals, and prose.\n\nStructured, clear, and expressive when appropriate.",
 			DefaultModel: defaultModel,
-			Skills:       []string{},
+			Tools:       []string{},
 		},
 	}
 

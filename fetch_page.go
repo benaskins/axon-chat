@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	loop "github.com/benaskins/axon-loop"
 	readability "github.com/go-shiori/go-readability"
-	ollamaapi "github.com/ollama/ollama/api"
 )
 
 const (
@@ -26,19 +26,19 @@ const (
 
 // PageFetcher handles fetching web pages and extracting relevant content.
 type PageFetcher struct {
-	client    *http.Client
-	llmClient ChatClient
-	mu        sync.Mutex
+	client *http.Client
+	llm    loop.LLMClient
+	mu     sync.Mutex
 	lastFetch time.Time
 }
 
 // NewPageFetcher creates a page fetcher with the given LLM client for extraction.
-func NewPageFetcher(llmClient ChatClient) *PageFetcher {
+func NewPageFetcher(llm loop.LLMClient) *PageFetcher {
 	return &PageFetcher{
 		client: &http.Client{
 			Timeout: fetchTimeout,
 		},
-		llmClient: llmClient,
+		llm: llm,
 	}
 }
 
@@ -82,7 +82,7 @@ func (f *PageFetcher) FetchAndExtract(ctx context.Context, rawURL, question stri
 	}
 
 	// LLM extraction
-	if f.llmClient == nil {
+	if f.llm == nil {
 		return text, nil
 	}
 
@@ -165,20 +165,12 @@ ads, and unrelated content. If the page has nothing relevant, say so.
 Page content:
 %s`, question, pageText)
 
-	messages := []ollamaapi.Message{
-		{Role: "user", Content: prompt},
-	}
-
-	stream := false
-	req := &ollamaapi.ChatRequest{
-		Model:    extractionModel,
-		Messages: messages,
-		Stream:   &stream,
-	}
-
 	var result strings.Builder
-	err := f.llmClient.Chat(ctx, req, func(resp ollamaapi.ChatResponse) error {
-		result.WriteString(resp.Message.Content)
+	err := f.llm.Chat(ctx, &loop.Request{
+		Model:    extractionModel,
+		Messages: []loop.Message{{Role: "user", Content: prompt}},
+	}, func(resp loop.Response) error {
+		result.WriteString(resp.Content)
 		return nil
 	})
 	if err != nil {

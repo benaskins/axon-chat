@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/benaskins/axon"
-	ollamaapi "github.com/ollama/ollama/api"
+	loop "github.com/benaskins/axon-loop"
 )
 
 // spyAnalytics captures emitted analytics events for testing.
@@ -58,16 +58,16 @@ func TestSyncChatEndpoint_EmptyMessages(t *testing.T) {
 
 func TestSyncChatEndpoint_ReturnsJSON(t *testing.T) {
 	mockClient := &mockStreamClient{
-		responses: []ollamaapi.ChatResponse{
-			{Message: ollamaapi.Message{Content: "Hello "}, Done: false},
-			{Message: ollamaapi.Message{Content: "there!"}, Done: true},
+		responses: []loop.Response{
+			{Content: "Hello "},
+			{Content: "there!", Done: true},
 		},
 	}
 
 	handler := &syncChatHandler{chat: newChatHandler("test-model", mockClient, nil, context.Background(), nil)}
 
 	body, _ := json.Marshal(chatRequest{
-		Messages: []ollamaapi.Message{{Role: "user", Content: "Hi"}},
+		Messages: []loop.Message{{Role: "user", Content: "Hi"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -104,7 +104,7 @@ func TestSyncChatEndpoint_TracksToolUse(t *testing.T) {
 	handler := &syncChatHandler{chat: newChatHandler("test-model", mockClient, nil, context.Background(), nil)}
 
 	body, _ := json.Marshal(chatRequest{
-		Messages: []ollamaapi.Message{{Role: "user", Content: "What's the weather?"}},
+		Messages: []loop.Message{{Role: "user", Content: "What's the weather?"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -129,8 +129,8 @@ func TestSyncChatEndpoint_TracksToolUse(t *testing.T) {
 
 func TestSyncChatEndpoint_PropagatesRunID(t *testing.T) {
 	mockClient := &mockStreamClient{
-		responses: []ollamaapi.ChatResponse{
-			{Message: ollamaapi.Message{Content: "Hi"}, Done: true},
+		responses: []loop.Response{
+			{Content: "Hi", Done: true},
 		},
 	}
 
@@ -142,7 +142,7 @@ func TestSyncChatEndpoint_PropagatesRunID(t *testing.T) {
 
 	body, _ := json.Marshal(chatRequest{
 		AgentSlug: "xagent",
-		Messages:  []ollamaapi.Message{{Role: "user", Content: "Hi"}},
+		Messages:  []loop.Message{{Role: "user", Content: "Hi"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
 	req.Header.Set("X-Axon-Run-Id", "run-test-123")
@@ -168,8 +168,8 @@ func TestSyncChatEndpoint_PropagatesRunID(t *testing.T) {
 
 func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 	mockClient := &mockStreamClient{
-		responses: []ollamaapi.ChatResponse{
-			{Message: ollamaapi.Message{Content: "I'm great!"}, Done: true},
+		responses: []loop.Response{
+			{Content: "I'm great!", Done: true},
 		},
 	}
 
@@ -184,7 +184,7 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 	body, _ := json.Marshal(chatRequest{
 		AgentSlug:      "helper",
 		ConversationID: conv.ID,
-		Messages:       []ollamaapi.Message{{Role: "user", Content: "How are you?"}},
+		Messages:       []loop.Message{{Role: "user", Content: "How are you?"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
 	ctx := context.WithValue(req.Context(), axon.UserIDKey, "test-user")
@@ -218,31 +218,22 @@ type mockToolClient struct {
 	finalContent string
 }
 
-func (m *mockToolClient) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+func (m *mockToolClient) Chat(ctx context.Context, req *loop.Request, fn func(loop.Response) error) error {
 	// First call: return a tool call
-	hasToolCall := false
+	hasToolResult := false
 	for _, msg := range req.Messages {
 		if msg.Role == "tool" {
-			hasToolCall = true
+			hasToolResult = true
 			break
 		}
 	}
 
-	if !hasToolCall {
-		return fn(ollamaapi.ChatResponse{
-			Message: ollamaapi.Message{
-				Role: "assistant",
-				ToolCalls: []ollamaapi.ToolCall{
-					{
-						Function: ollamaapi.ToolCallFunction{
-							Name:      m.toolName,
-							Arguments: func() ollamaapi.ToolCallFunctionArguments {
-							a := ollamaapi.NewToolCallFunctionArguments()
-							a.Set("location", "Melbourne")
-							return a
-						}(),
-						},
-					},
+	if !hasToolResult {
+		return fn(loop.Response{
+			ToolCalls: []loop.ToolCall{
+				{
+					Name:      m.toolName,
+					Arguments: map[string]any{"location": "Melbourne"},
 				},
 			},
 			Done: true,
@@ -250,11 +241,8 @@ func (m *mockToolClient) Chat(ctx context.Context, req *ollamaapi.ChatRequest, f
 	}
 
 	// Second call: return final content
-	return fn(ollamaapi.ChatResponse{
-		Message: ollamaapi.Message{
-			Role:    "assistant",
-			Content: m.finalContent,
-		},
-		Done: true,
+	return fn(loop.Response{
+		Content: m.finalContent,
+		Done:    true,
 	})
 }

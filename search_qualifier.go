@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	ollamaapi "github.com/ollama/ollama/api"
+	loop "github.com/benaskins/axon-loop"
 )
 
 const (
@@ -19,19 +19,19 @@ const (
 // agent's system prompt, producing more targeted and contextually relevant
 // search terms.
 type SearchQualifier struct {
-	client ChatClient
+	llm loop.LLMClient
 }
 
 // NewSearchQualifier creates a new search qualifier.
-func NewSearchQualifier(client ChatClient) *SearchQualifier {
-	return &SearchQualifier{client: client}
+func NewSearchQualifier(llm loop.LLMClient) *SearchQualifier {
+	return &SearchQualifier{llm: llm}
 }
 
 // Qualify takes a raw search query and the agent's system prompt, and returns
 // a refined query that incorporates the agent's domain expertise and context.
 // If qualification fails, returns the original query unchanged.
 func (sq *SearchQualifier) Qualify(ctx context.Context, query, systemPrompt string) string {
-	if sq.client == nil || strings.TrimSpace(systemPrompt) == "" {
+	if sq.llm == nil || strings.TrimSpace(systemPrompt) == "" {
 		return query
 	}
 
@@ -55,16 +55,14 @@ Original query: %s
 
 Refined query:`, systemPrompt, query)
 
-	stream := false
 	var result strings.Builder
 
 	start := time.Now()
-	err := sq.client.Chat(qualCtx, &ollamaapi.ChatRequest{
+	err := sq.llm.Chat(qualCtx, &loop.Request{
 		Model:    qualifierModel,
-		Messages: []ollamaapi.Message{{Role: "user", Content: prompt}},
-		Stream:   &stream,
-	}, func(resp ollamaapi.ChatResponse) error {
-		result.WriteString(resp.Message.Content)
+		Messages: []loop.Message{{Role: "user", Content: prompt}},
+	}, func(resp loop.Response) error {
+		result.WriteString(resp.Content)
 		return nil
 	})
 

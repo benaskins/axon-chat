@@ -133,7 +133,7 @@ func TestRecallMemoryTool_NoMemoriesFound(t *testing.T) {
 func TestBuildSystemPrompt_RecallMemory(t *testing.T) {
 	a := Agent{
 		SystemPrompt: "You are Hal.",
-		Skills:       []string{"recall_memory"},
+		Tools:        []string{"recall_memory"},
 	}
 	result := BuildSystemPrompt(a)
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	ollamaapi "github.com/ollama/ollama/api"
+	loop "github.com/benaskins/axon-loop"
 )
 
 func TestChatEndpoint_InvalidMethod(t *testing.T) {
@@ -66,16 +66,16 @@ func TestChatEndpoint_NoClient(t *testing.T) {
 
 func TestChatEndpoint_StreamsViaAgentRun(t *testing.T) {
 	mockClient := &mockStreamClient{
-		responses: []ollamaapi.ChatResponse{
-			{Message: ollamaapi.Message{Content: "Hello "}, Done: false},
-			{Message: ollamaapi.Message{Content: "there!"}, Done: true},
+		responses: []loop.Response{
+			{Content: "Hello "},
+			{Content: "there!", Done: true},
 		},
 	}
 
 	handler := newChatHandler("test-model", mockClient, nil, context.Background(), nil)
 
 	body, _ := json.Marshal(chatRequest{
-		Messages: []ollamaapi.Message{{Role: "user", Content: "Hi"}},
+		Messages: []loop.Message{{Role: "user", Content: "Hi"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -102,10 +102,10 @@ func TestChatEndpoint_StreamsViaAgentRun(t *testing.T) {
 }
 
 type mockStreamClient struct {
-	responses []ollamaapi.ChatResponse
+	responses []loop.Response
 }
 
-func (m *mockStreamClient) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+func (m *mockStreamClient) Chat(ctx context.Context, req *loop.Request, fn func(loop.Response) error) error {
 	for _, resp := range m.responses {
 		if err := fn(resp); err != nil {
 			return err

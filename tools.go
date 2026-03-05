@@ -7,23 +7,22 @@ import (
 	"strings"
 
 	tool "github.com/benaskins/axon-tool"
-	ollamaapi "github.com/ollama/ollama/api"
 )
 
-// buildToolMap builds a map of tool.ToolDef for the given skills.
+// buildToolMap builds a map of tool.ToolDef for the given tool names.
 // Per-request state (sendEvent, imageRefs) is closed over by chat-specific tools.
-func (h *chatHandler) buildToolMap(skills []string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) map[string]tool.ToolDef {
+func (h *chatHandler) buildToolMap(toolNames []string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) map[string]tool.ToolDef {
 	result := make(map[string]tool.ToolDef)
-	for _, skill := range skills {
-		if def, ok := h.buildTool(skill, sendEvent, r, agentSlug, conversationID, systemPrompt); ok {
-			result[skill] = def
+	for _, name := range toolNames {
+		if def, ok := h.buildTool(name, sendEvent, r, agentSlug, conversationID, systemPrompt); ok {
+			result[name] = def
 		}
 	}
 	return result
 }
 
-func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) (tool.ToolDef, bool) {
-	switch skill {
+func (h *chatHandler) buildTool(name string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) (tool.ToolDef, bool) {
+	switch name {
 	case "current_time":
 		return tool.CurrentTimeTool(), true
 	case "web_search":
@@ -37,7 +36,7 @@ func (h *chatHandler) buildTool(skill string, sendEvent func(sseEvent), r *http.
 	case "recall_memory":
 		return h.recallMemoryTool(), true
 	default:
-		if def, ok := h.extraTools[skill]; ok {
+		if def, ok := h.extraTools[name]; ok {
 			return def, true
 		}
 		return tool.ToolDef{}, false
@@ -263,15 +262,15 @@ func formatMemoryResponse(resp *MemoryRecallResponse) string {
 	return sb.String()
 }
 
-// SkillInfo describes an available skill for the frontend.
-type SkillInfo struct {
+// ToolInfo describes an available tool for the frontend.
+type ToolInfo struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
 }
 
-// AvailableSkills is the single source of truth for all skills.
-var AvailableSkills = []SkillInfo{
+// AvailableTools is the single source of truth for all tools.
+var AvailableTools = []ToolInfo{
 	{ID: "web_search", Label: "Web Search", Description: "search the web for current information"},
 	{ID: "fetch_page", Label: "Fetch Page", Description: "read web pages and extract relevant content"},
 	{ID: "use_claude", Label: "Use Claude", Description: "request code changes to itself"},
@@ -280,16 +279,15 @@ var AvailableSkills = []SkillInfo{
 	{ID: "recall_memory", Label: "Recall Memory", Description: "search past conversations and memories"},
 }
 
-// BuildToolsForAgent returns the Ollama tool definitions for an agent's enabled skills.
-// Used by non-chat callers that need Ollama-formatted tool schemas.
-func BuildToolsForAgent(a Agent) ollamaapi.Tools {
-	defs := make(map[string]tool.ToolDef)
-	for _, skill := range a.Skills {
-		switch skill {
+// BuildToolsForAgent returns the tool definitions for an agent's enabled tools.
+func BuildToolsForAgent(a Agent) []tool.ToolDef {
+	var defs []tool.ToolDef
+	for _, name := range a.Tools {
+		switch name {
 		case "current_time":
-			defs[skill] = tool.CurrentTimeTool()
+			defs = append(defs, tool.CurrentTimeTool())
 		case "web_search":
-			defs[skill] = tool.ToolDef{
+			defs = append(defs, tool.ToolDef{
 				Name:        "web_search",
 				Description: "Search the web for current information.",
 				Parameters: tool.ParameterSchema{
@@ -299,9 +297,9 @@ func BuildToolsForAgent(a Agent) ollamaapi.Tools {
 						"query": {Type: "string", Description: "The search query."},
 					},
 				},
-			}
+			})
 		case "fetch_page":
-			defs[skill] = tool.ToolDef{
+			defs = append(defs, tool.ToolDef{
 				Name:        "fetch_page",
 				Description: "Fetch a web page and extract relevant content.",
 				Parameters: tool.ParameterSchema{
@@ -312,9 +310,9 @@ func BuildToolsForAgent(a Agent) ollamaapi.Tools {
 						"question": {Type: "string", Description: "What to look for."},
 					},
 				},
-			}
+			})
 		case "use_claude":
-			defs[skill] = tool.ToolDef{
+			defs = append(defs, tool.ToolDef{
 				Name:        "use_claude",
 				Description: "Request a code change.",
 				Parameters: tool.ParameterSchema{
@@ -324,9 +322,9 @@ func BuildToolsForAgent(a Agent) ollamaapi.Tools {
 						"description": {Type: "string", Description: "Description of the change."},
 					},
 				},
-			}
+			})
 		case "check_weather":
-			defs[skill] = tool.ToolDef{
+			defs = append(defs, tool.ToolDef{
 				Name:        "check_weather",
 				Description: "Check the current weather.",
 				Parameters: tool.ParameterSchema{
@@ -336,12 +334,8 @@ func BuildToolsForAgent(a Agent) ollamaapi.Tools {
 						"location": {Type: "string", Description: "The location."},
 					},
 				},
-			}
+			})
 		}
 	}
-	var toolDefs []tool.ToolDef
-	for _, d := range defs {
-		toolDefs = append(toolDefs, d)
-	}
-	return toOllamaToolDefs(toolDefs)
+	return defs
 }

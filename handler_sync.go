@@ -58,19 +58,16 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		model = h.chat.defaultModel
 	}
 
-	if h.chat.client == nil {
-		axon.WriteError(w, http.StatusInternalServerError, "ollama client not configured")
+	if h.chat.llm == nil {
+		axon.WriteError(w, http.StatusInternalServerError, "LLM client not configured")
 		return
 	}
 
 	start := time.Now()
 
-	// Convert messages
-	agentMessages := ollamaMessagesToAgent(req.Messages)
-
 	var systemPrompt string
-	if len(agentMessages) > 0 && agentMessages[0].Role == "system" {
-		systemPrompt = agentMessages[0].Content
+	if len(req.Messages) > 0 && req.Messages[0].Role == "system" {
+		systemPrompt = req.Messages[0].Content
 	}
 
 	// Extract last user message content
@@ -82,24 +79,24 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build tool map from skills
-	tools := h.chat.buildToolMap(req.Skills, func(sseEvent) {}, r, req.AgentSlug, req.ConversationID, systemPrompt)
+	// Build tool map from requested tool names
+	tools := h.chat.buildToolMap(req.Tools, func(sseEvent) {}, r, req.AgentSlug, req.ConversationID, systemPrompt)
 
 	// Use tool router if available
 	if h.chat.toolRouter != nil && len(tools) > 0 && userContent != "" {
 		toolDefs := toolDefsFromMap(tools)
-		routed, err := h.chat.toolRouter.Route(r.Context(), userContent, toolDefsToOllama(toolDefs))
+		routed, err := h.chat.toolRouter.Route(r.Context(), userContent, toolDefs)
 		if err != nil {
 			slog.Warn("tool router error, proceeding with all tools", "error", err)
 		} else {
-			tools = filterToolMap(tools, routed)
+			tools = filterToolNames(tools, routed)
 		}
 	}
 
 	// Build agent request
-	agentReq := &loop.ChatRequest{
+	agentReq := &loop.Request{
 		Model:    model,
-		Messages: agentMessages,
+		Messages: req.Messages,
 		Stream:   false,
 		Think:    req.Think,
 		Options:  req.Options,
@@ -135,7 +132,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OnDone: func(durationMs int64) {},
 	}
 
-	_, err := loop.Run(r.Context(), h.chat.adapter, agentReq, tools, toolCtx, cb)
+	_, err := loop.Run(r.Context(), h.chat.llm, agentReq, tools, toolCtx, cb)
 	if err != nil {
 		chatRequestsTotal.WithLabelValues(model, "error").Inc()
 		axon.WriteError(w, http.StatusInternalServerError, "agent error: "+err.Error())

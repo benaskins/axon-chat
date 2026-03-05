@@ -18,7 +18,7 @@ type Agent struct {
 	MinP            *float64 `json:"min_p,omitempty"`
 	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
 	MaxTokens       *int     `json:"max_tokens,omitempty"`
-	Skills          []string `json:"skills,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
 }
 
 // AgentSummary is the lightweight representation for list responses.

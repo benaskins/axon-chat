@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
+	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
 )
@@ -20,6 +21,7 @@ type Server struct {
 	staticFiles *embed.FS
 
 	// Optional dependencies — set before calling Handler().
+	ModelLister     ModelLister
 	Searcher        Searcher
 	ToolRouter      *ToolRouter
 	TaskRunner      TaskRunner
@@ -42,16 +44,21 @@ type Server struct {
 	ExtraTools map[string]tool.ToolDef
 }
 
+// ModelLister lists available models from the LLM backend.
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]string, error)
+}
+
 // NewServer creates a chat server with required dependencies.
 func NewServer(
 	cfg Config,
 	store Store,
-	client ChatClient,
+	llm loop.LLMClient,
 	staticFiles *embed.FS,
 	eventBus *sse.EventBus[Event],
 	shutdownCtx context.Context,
 ) *Server {
-	chat := newChatHandler(cfg.DefaultModel, client, store, shutdownCtx, eventBus)
+	chat := newChatHandler(cfg.DefaultModel, llm, store, shutdownCtx, eventBus)
 
 	return &Server{
 		config:      cfg,
@@ -92,8 +99,8 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 	// Protected API routes — models endpoint requires ModelLister support
 	var modelsRoute http.Handler
-	if lister, ok := s.chat.client.(ModelLister); ok {
-		modelsRoute = auth(&modelsHandler{lister: lister})
+	if s.ModelLister != nil {
+		modelsRoute = auth(&modelsHandler{lister: s.ModelLister})
 	} else {
 		modelsRoute = auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			axon.WriteError(w, http.StatusNotImplemented, "model listing not supported")

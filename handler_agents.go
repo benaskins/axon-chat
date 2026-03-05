@@ -26,9 +26,9 @@ func BuildSystemPrompt(a Agent) string {
 		parts = append(parts, "## Constraints\n"+c)
 	}
 
-	// Add tool-use guidance per skill
-	for _, skill := range a.Skills {
-		switch skill {
+	// Add tool-use guidance per tool
+	for _, name := range a.Tools {
+		switch name {
 		case "web_search":
 			parts = append(parts, "## Search\nYou can search the web for current information. Your search queries are automatically refined using your identity and expertise to produce more targeted results. When you use search results, cite your sources with inline markdown links like [Title](url). Search when you need recent facts, news, or details you're unsure about — not every question requires a search.")
 		case "use_claude":
