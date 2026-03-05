@@ -311,7 +311,7 @@
             }).filter(([, v]) => v != null)
           ),
           messages: buildMessagesPayload(),
-          skills: agent?.skills || []
+          tools: agent?.tools || []
         })
       });
 

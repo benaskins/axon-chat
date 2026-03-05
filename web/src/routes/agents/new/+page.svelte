@@ -25,9 +25,9 @@
   let presencePenalty = $state(null);
   let maxTokens = $state(null);
   let activeTab = $state('persona');
-  let enabledSkills = $state(new Set());
+  let enabledTools = $state(new Set());
 
-  let availableSkills = $state([]);
+  let availableTools = $state([]);
 
   function slugify(text) {
     return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -41,15 +41,15 @@
   }
 
   onMount(async () => {
-    const [modelsRes, skillsRes] = await Promise.all([
+    const [modelsRes, toolsRes] = await Promise.all([
       authenticatedFetch('/api/models'),
-      fetch('/api/skills'),
+      fetch('/api/tools'),
     ]);
     if (modelsRes.ok) {
       models = await modelsRes.json();
     }
-    if (skillsRes.ok) {
-      availableSkills = await skillsRes.json();
+    if (toolsRes.ok) {
+      availableTools = await toolsRes.json();
     }
     loading = false;
   });
@@ -89,7 +89,7 @@
           min_p: minP,
           presence_penalty: presencePenalty,
           max_tokens: maxTokens,
-          skills: [...enabledSkills],
+          tools: [...enabledTools],
         })
       });
 
@@ -186,19 +186,19 @@
         </button>
       </div>
       <div class="field">
-        <label>Skills</label>
-        {#each availableSkills as skill}
+        <label>Tools</label>
+        {#each availableTools as tool}
           <label class="checkbox-label">
-            <input type="checkbox" checked={enabledSkills.has(skill.id)}
+            <input type="checkbox" checked={enabledTools.has(tool.id)}
               onchange={() => {
-                if (enabledSkills.has(skill.id)) {
-                  enabledSkills.delete(skill.id);
+                if (enabledTools.has(tool.id)) {
+                  enabledTools.delete(tool.id);
                 } else {
-                  enabledSkills.add(skill.id);
+                  enabledTools.add(tool.id);
                 }
-                enabledSkills = new Set(enabledSkills);
+                enabledTools = new Set(enabledTools);
               }} />
-            {skill.label} — {skill.description}
+            {tool.label} — {tool.description}
           </label>
         {/each}
       </div>

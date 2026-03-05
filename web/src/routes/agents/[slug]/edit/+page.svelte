@@ -30,7 +30,7 @@
   let presencePenalty = $state(null);
   let maxTokens = $state(null);
   let activeTab = $state('persona');
-  let enabledSkills = $state(new Set());
+  let enabledTools = $state(new Set());
 
   // Snapshot for dirty tracking
   let snapshot = $state(null);
@@ -41,7 +41,7 @@
     return {
       name, tagline, avatarEmoji, systemPrompt, constraints,
       greeting, defaultModel, temperature, thinkEnabled, topP, topK, minP,
-      presencePenalty, maxTokens, enabledSkills: [...enabledSkills].sort(),
+      presencePenalty, maxTokens, enabledTools: [...enabledTools].sort(),
     };
   }
 
@@ -49,7 +49,7 @@
     snapshot = JSON.stringify(currentValues());
   }
 
-  let availableSkills = $state([]);
+  let availableTools = $state([]);
 
   // Autogrow action for textareas
   function autogrow(node) {
@@ -103,15 +103,15 @@
     const slugParam = $page.params.slug;
     isNew = !slugParam;
 
-    const [modelsRes, skillsRes] = await Promise.all([
+    const [modelsRes, toolsRes] = await Promise.all([
       authenticatedFetch('/api/models'),
-      fetch('/api/skills'),
+      fetch('/api/tools'),
     ]);
     if (modelsRes.ok) {
       models = await modelsRes.json();
     }
-    if (skillsRes.ok) {
-      availableSkills = await skillsRes.json();
+    if (toolsRes.ok) {
+      availableTools = await toolsRes.json();
     }
 
     if (!isNew) {
@@ -137,7 +137,7 @@
         minP = agent.min_p ?? null;
         presencePenalty = agent.presence_penalty ?? null;
         maxTokens = agent.max_tokens ?? null;
-        enabledSkills = new Set(agent.skills || []);
+        enabledTools = new Set(agent.tools || []);
       } catch {
         goto('/');
         return;
@@ -192,7 +192,7 @@
           min_p: minP,
           presence_penalty: presencePenalty,
           max_tokens: maxTokens,
-          skills: [...enabledSkills],
+          tools: [...enabledTools],
         })
       });
 
@@ -310,19 +310,19 @@
         </button>
       </div>
       <div class="field">
-        <label>Skills</label>
-        {#each availableSkills as skill}
+        <label>Tools</label>
+        {#each availableTools as tool}
           <label class="checkbox-label">
-            <input type="checkbox" checked={enabledSkills.has(skill.id)}
+            <input type="checkbox" checked={enabledTools.has(tool.id)}
               onchange={() => {
-                if (enabledSkills.has(skill.id)) {
-                  enabledSkills.delete(skill.id);
+                if (enabledTools.has(tool.id)) {
+                  enabledTools.delete(tool.id);
                 } else {
-                  enabledSkills.add(skill.id);
+                  enabledTools.add(tool.id);
                 }
-                enabledSkills = new Set(enabledSkills);
+                enabledTools = new Set(enabledTools);
               }} />
-            {skill.label} — {skill.description}
+            {tool.label} — {tool.description}
           </label>
         {/each}
       </div>
