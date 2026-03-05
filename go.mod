@@ -5,9 +5,12 @@ go 1.24.1
 toolchain go1.24.13
 
 require (
-	github.com/benaskins/axon v0.1.0
+	github.com/benaskins/axon v0.3.0
 	github.com/benaskins/axon-loop v0.1.0
 	github.com/benaskins/axon-tool v0.1.0
+)
+
+require (
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
 	github.com/google/uuid v1.6.0
 	github.com/ollama/ollama v0.15.6
@@ -47,10 +50,4 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
-
-replace (
-	github.com/benaskins/axon => ../axon
-	github.com/benaskins/axon-loop => ../axon-loop
-	github.com/benaskins/axon-tool => ../axon-tool
 )
