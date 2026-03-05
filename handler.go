@@ -1,4 +1,4 @@
-package chat //  (NSFW detector is a safety feature)
+package chat
 
 import (
 	"context"
