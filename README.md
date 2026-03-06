@@ -1,6 +1,6 @@
 # axon-chat
 
-A chat service library with LLM integration, tool calling, SSE streaming, and agent management.
+A chat service library with LLM integration, tool calling, SSE streaming, and agent management. Part of [lamina](https://github.com/benaskins/lamina) — each axon package can be used independently.
 
 Defines domain types, store interfaces, HTTP handlers, and integration clients. PostgreSQL implementations live in the consuming application's composition root.
 
