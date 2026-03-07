@@ -109,3 +109,23 @@ func TestScanForToolNames_CaseInsensitive(t *testing.T) {
 		t.Errorf("expected [web_search], got %v", got)
 	}
 }
+
+func TestScanForToolNames_RejectsPartialMatches(t *testing.T) {
+	available := map[string]bool{"web_search": true}
+
+	response := `The web_searching feature is great`
+	got := scanForToolNames(response, available)
+	if len(got) != 0 {
+		t.Errorf("expected no matches for partial tool name, got %v", got)
+	}
+}
+
+func TestScanForToolNames_RejectsPartialPrefix(t *testing.T) {
+	available := map[string]bool{"web_search": true}
+
+	response := `Use the new_web_search tool`
+	got := scanForToolNames(response, available)
+	if len(got) != 0 {
+		t.Errorf("expected no matches for prefixed tool name, got %v", got)
+	}
+}

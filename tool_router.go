@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -130,12 +131,14 @@ func parseToolResponse(response string, available map[string]bool) []string {
 	return selected
 }
 
-// scanForToolNames is a fallback that scans the response for known tool names.
+// scanForToolNames is a fallback that scans the response for known tool names
+// using word-boundary matching to avoid partial matches.
 func scanForToolNames(response string, available map[string]bool) []string {
 	cleaned := strings.ToLower(response)
 	var selected []string
 	for name := range available {
-		if strings.Contains(cleaned, name) {
+		pattern := `\b` + regexp.QuoteMeta(name) + `\b`
+		if matched, _ := regexp.MatchString(pattern, cleaned); matched {
 			selected = append(selected, name)
 		}
 	}

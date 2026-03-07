@@ -163,10 +163,7 @@ func TestConversationDeleteHandler_DeletesConversation(t *testing.T) {
 	}
 }
 
-func TestConversationDeleteHandler_NonexistentReturns204(t *testing.T) {
-	// The in-memory store's DeleteConversation is a no-op for missing keys,
-	// so the handler returns 204 even if the conversation doesn't exist.
-	// This test documents that behavior.
+func TestConversationDeleteHandler_NonexistentReturns404(t *testing.T) {
 	store := newMemoryStore()
 	handler := &conversationDeleteHandler{store: store}
 
@@ -176,8 +173,8 @@ func TestConversationDeleteHandler_NonexistentReturns204(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 

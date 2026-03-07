@@ -105,6 +105,12 @@ func (h *conversationDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	userID := axon.UserID(r.Context())
 	id := r.PathValue("id")
+
+	if _, err := h.store.GetConversationByUser(userID, id); err != nil {
+		axon.WriteError(w, http.StatusNotFound, "conversation not found")
+		return
+	}
+
 	if err := h.store.DeleteConversation(userID, id); err != nil {
 		slog.Error("failed to delete conversation", "id", id, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to delete conversation")
