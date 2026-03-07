@@ -166,18 +166,26 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Persist messages — same as streaming handler
 	if req.ConversationID != "" && h.chat.store != nil {
-		h.chat.store.AppendMessage(req.ConversationID, Message{
-			Role:    "user",
-			Content: userContent,
-		})
+		stream := "conversation-" + req.ConversationID
 
-		assistantMsg := Message{
-			Role:       "assistant",
-			Content:    content.String(),
-			Thinking:   thinking.String(),
-			DurationMs: &durationMs,
+		if h.chat.eventStore != nil {
+			h.chat.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
+			h.chat.emit(r.Context(), stream, MessageAppended{
+				Role: "assistant", Content: content.String(),
+				Thinking: thinking.String(), DurationMs: &durationMs,
+			}, nil)
+		} else {
+			h.chat.store.AppendMessage(req.ConversationID, Message{
+				Role:    "user",
+				Content: userContent,
+			})
+			h.chat.store.AppendMessage(req.ConversationID, Message{
+				Role:       "assistant",
+				Content:    content.String(),
+				Thinking:   thinking.String(),
+				DurationMs: &durationMs,
+			})
 		}
-		h.chat.store.AppendMessage(req.ConversationID, assistantMsg)
 
 		if h.chat.idleExtractor != nil && req.AgentSlug != "" {
 			h.chat.idleExtractor.Touch(req.ConversationID, req.AgentSlug, userID)

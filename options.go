@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 
+	fact "github.com/benaskins/axon-fact"
 	tool "github.com/benaskins/axon-tool"
 	"github.com/benaskins/axon/sse"
 )
@@ -128,5 +129,14 @@ func WithAnalytics(analytics AnalyticsEmitter) Option {
 func WithExtraTools(tools map[string]tool.ToolDef) Option {
 	return func(s *Server) {
 		s.ExtraTools = tools
+	}
+}
+
+// WithEventStore sets the event store for event-sourced persistence.
+// When combined with a Store (via WithStore), projectors are auto-registered
+// to keep the read model in sync.
+func WithEventStore(es fact.EventStore) Option {
+	return func(s *Server) {
+		s.chat.eventStore = es
 	}
 }

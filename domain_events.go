@@ -15,15 +15,21 @@ type EventTyper interface {
 
 // NewEvent creates a fact.Event from a domain event struct.
 func NewEvent(stream string, data EventTyper) (fact.Event, error) {
+	return NewEventWithMeta(stream, data, nil)
+}
+
+// NewEventWithMeta creates a fact.Event with metadata from a domain event struct.
+func NewEventWithMeta(stream string, data EventTyper, meta map[string]string) (fact.Event, error) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return fact.Event{}, err
 	}
 	return fact.Event{
-		ID:     generateEventID(),
-		Stream: stream,
-		Type:   data.EventType(),
-		Data:   raw,
+		ID:       generateEventID(),
+		Stream:   stream,
+		Type:     data.EventType(),
+		Data:     raw,
+		Metadata: meta,
 	}, nil
 }
 

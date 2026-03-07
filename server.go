@@ -102,13 +102,13 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 	agentsList := &agentsListHandler{store: s.chat.store}
 	agentDetail := &agentDetailHandler{store: s.chat.store}
-	agentSave := &agentSaveHandler{store: s.chat.store, taskRunner: s.TaskRunner}
-	agentDelete := &agentDeleteHandler{store: s.chat.store}
+	agentSave := &agentSaveHandler{store: s.chat.store, eventStore: s.chat.eventStore, taskRunner: s.TaskRunner}
+	agentDelete := &agentDeleteHandler{store: s.chat.store, eventStore: s.chat.eventStore}
 
 	convoList := &conversationListHandler{store: s.chat.store}
-	convoCreate := &conversationCreateHandler{store: s.chat.store}
+	convoCreate := &conversationCreateHandler{store: s.chat.store, eventStore: s.chat.eventStore}
 	convoGet := &conversationGetHandler{store: s.chat.store}
-	convoDelete := &conversationDeleteHandler{store: s.chat.store}
+	convoDelete := &conversationDeleteHandler{store: s.chat.store, eventStore: s.chat.eventStore}
 
 	mux.Handle("/api/chat/sync", auth(&syncChatHandler{chat: s.chat}))
 	mux.Handle("/api/chat", auth(s.chat))
@@ -169,7 +169,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 // UserCreatedHandler returns an http.Handler for the user-created webhook.
 func (s *Server) UserCreatedHandler() http.Handler {
-	return &userCreatedHandler{store: s.chat.store, defaultModel: s.config.DefaultModel}
+	return &userCreatedHandler{store: s.chat.store, eventStore: s.chat.eventStore, defaultModel: s.config.DefaultModel}
 }
 
 // InternalMessagesHandler returns an http.Handler for fetching conversation messages

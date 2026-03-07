@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
+	fact "github.com/benaskins/axon-fact"
 )
 
 const maxAgentSize = 1 << 20 // 1MB
@@ -103,6 +104,7 @@ func (h *agentDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // agentSaveHandler serves PUT /api/agents/{slug}.
 type agentSaveHandler struct {
 	store      Store
+	eventStore fact.EventStore
 	taskRunner TaskRunner
 }
 
@@ -210,7 +212,28 @@ func (h *agentSaveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		agent.MaxTokens = &v
 	}
 
-	if err := h.store.SaveAgent(agent); err != nil {
+	if h.eventStore != nil {
+		// Determine if this is a create or update
+		existing, _ := h.store.GetAgentByUser(userID, slug)
+		var eventData EventTyper
+		if existing == nil {
+			eventData = AgentCreated{Agent: agent}
+		} else {
+			eventData = AgentUpdated{Agent: agent}
+		}
+		stream := "agent-" + userID + "-" + slug
+		evt, err := NewEvent(stream, eventData)
+		if err != nil {
+			slog.Error("failed to create event", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to save agent")
+			return
+		}
+		if err := h.eventStore.Append(r.Context(), stream, []fact.Event{evt}); err != nil {
+			slog.Error("failed to save agent", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to save agent")
+			return
+		}
+	} else if err := h.store.SaveAgent(agent); err != nil {
 		slog.Error("failed to save agent", "slug", slug, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to save agent")
 		return
@@ -240,7 +263,8 @@ func (h *agentSaveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // agentDeleteHandler serves DELETE /api/agents/{slug}.
 type agentDeleteHandler struct {
-	store Store
+	store      Store
+	eventStore fact.EventStore
 }
 
 func (h *agentDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -257,7 +281,21 @@ func (h *agentDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.DeleteAgent(userID, slug); err != nil {
+	if h.eventStore != nil {
+		stream := "agent-" + userID + "-" + slug
+		meta := map[string]string{"user_id": userID, "slug": slug}
+		evt, err := NewEventWithMeta(stream, AgentDeleted{}, meta)
+		if err != nil {
+			slog.Error("failed to create event", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to delete agent")
+			return
+		}
+		if err := h.eventStore.Append(r.Context(), stream, []fact.Event{evt}); err != nil {
+			slog.Error("failed to delete agent", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to delete agent")
+			return
+		}
+	} else if err := h.store.DeleteAgent(userID, slug); err != nil {
 		slog.Error("failed to delete agent", "slug", slug, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to delete agent")
 		return
