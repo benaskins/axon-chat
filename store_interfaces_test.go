@@ -43,6 +43,9 @@ func (s *writeStoreCheck) DeleteAgent(userID, slug string) error                
 func (s *writeStoreCheck) CreateConversationForUser(userID string, agentSlug string) (*Conversation, error) {
 	return nil, nil
 }
+func (s *writeStoreCheck) CreateConversationWithID(id, userID, agentSlug string) (*Conversation, error) {
+	return nil, nil
+}
 func (s *writeStoreCheck) UpdateConversationTitle(userID string, id string, title string) error { return nil }
 func (s *writeStoreCheck) DeleteConversation(userID string, id string) error                    { return nil }
 func (s *writeStoreCheck) AppendMessage(conversationID string, msg Message) error               { return nil }

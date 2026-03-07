@@ -142,11 +142,15 @@ func (s *MemoryStore) GetConversationByUser(userID string, id string) (*chat.Con
 }
 
 func (s *MemoryStore) CreateConversationForUser(userID string, agentSlug string) (*chat.Conversation, error) {
+	return s.CreateConversationWithID(uuid.New().String(), userID, agentSlug)
+}
+
+func (s *MemoryStore) CreateConversationWithID(id, userID, agentSlug string) (*chat.Conversation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	c := chat.Conversation{
-		ID:        uuid.New().String(),
+		ID:        id,
 		AgentSlug: agentSlug,
 		UserID:    userID,
 		CreatedAt: now,

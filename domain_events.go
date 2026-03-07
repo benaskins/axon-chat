@@ -62,6 +62,7 @@ func (e AgentDeleted) EventType() string { return "agent.deleted" }
 // Conversation events
 
 type ConversationCreated struct {
+	ID        string `json:"id"`
 	AgentSlug string `json:"agent_slug"`
 	UserID    string `json:"user_id"`
 }

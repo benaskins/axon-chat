@@ -36,6 +36,7 @@ type ReadModelWriter interface {
 	SaveAgent(agent Agent) error
 	DeleteAgent(userID, slug string) error
 	CreateConversationForUser(userID string, agentSlug string) (*Conversation, error)
+	CreateConversationWithID(id, userID, agentSlug string) (*Conversation, error)
 	UpdateConversationTitle(userID string, id string, title string) error
 	DeleteConversation(userID string, id string) error
 	AppendMessage(conversationID string, msg Message) error
