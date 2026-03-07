@@ -15,10 +15,14 @@ Requires Go 1.24+.
 ## Usage
 
 ```go
-srv := chat.NewServer(chat.Config{
-    DefaultModel: "llama3.3:70b-instruct-q8_0",
-    CookieDomain: ".example.com",
-}, store, ollamaClient, staticFiles, eventBus, ctx)
+srv := chat.NewServer(ollamaClient,
+    chat.WithStore(store),
+    chat.WithDefaultModel("llama3.3:70b-instruct-q8_0"),
+    chat.WithCookieDomain(".example.com"),
+    chat.WithStaticFiles(staticFiles),
+    chat.WithEventBus(eventBus),
+    chat.WithShutdownContext(ctx),
+)
 
 http.Handle("/", srv.Handler(authMiddleware))
 ```

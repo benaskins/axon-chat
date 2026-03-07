@@ -10,7 +10,6 @@ import (
 	"github.com/benaskins/axon"
 	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
-	"github.com/benaskins/axon/sse"
 )
 
 // Server is the chat service HTTP server.
@@ -49,22 +48,16 @@ type ModelLister interface {
 	ListModels(ctx context.Context) ([]string, error)
 }
 
-// NewServer creates a chat server with required dependencies.
-func NewServer(
-	cfg Config,
-	store Store,
-	llm loop.LLMClient,
-	staticFiles *embed.FS,
-	eventBus *sse.EventBus[Event],
-	shutdownCtx context.Context,
-) *Server {
-	chat := newChatHandler(cfg.DefaultModel, llm, store, shutdownCtx, eventBus)
-
-	return &Server{
-		config:      cfg,
-		chat:        chat,
-		staticFiles: staticFiles,
+// NewServer creates a chat server. The LLM client is the only required
+// dependency; everything else is configured via Option functions.
+func NewServer(llm loop.LLMClient, opts ...Option) *Server {
+	srv := &Server{
+		chat: newChatHandler("", llm, nil, context.Background(), nil),
 	}
+	for _, opt := range opts {
+		opt(srv)
+	}
+	return srv
 }
 
 // Handler returns an http.Handler with all chat routes except /health and /metrics.
