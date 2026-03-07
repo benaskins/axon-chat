@@ -1,8 +1,6 @@
 module github.com/benaskins/axon-chat
 
-go 1.24.1
-
-toolchain go1.24.13
+go 1.25.0
 
 require (
 	github.com/benaskins/axon v0.3.0
@@ -19,6 +17,7 @@ require (
 require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
+	github.com/benaskins/axon-fact v0.0.0-20260307073113-4cdb33bb95d8 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
