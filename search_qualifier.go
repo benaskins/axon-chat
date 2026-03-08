@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	qualifierModel   = "qwen2.5:3b"
+	defaultQualifierModel = "qwen2.5:3b"
 	qualifierTimeout = 10 * time.Second
 )
 
@@ -19,12 +19,17 @@ const (
 // agent's system prompt, producing more targeted and contextually relevant
 // search terms.
 type SearchQualifier struct {
-	llm loop.LLMClient
+	llm   loop.LLMClient
+	model string
 }
 
 // NewSearchQualifier creates a new search qualifier.
-func NewSearchQualifier(llm loop.LLMClient) *SearchQualifier {
-	return &SearchQualifier{llm: llm}
+// If model is empty, defaults to the built-in qualifier model.
+func NewSearchQualifier(llm loop.LLMClient, model string) *SearchQualifier {
+	if model == "" {
+		model = defaultQualifierModel
+	}
+	return &SearchQualifier{llm: llm, model: model}
 }
 
 // Qualify takes a raw search query and the agent's system prompt, and returns
@@ -59,7 +64,7 @@ Refined query:`, systemPrompt, query)
 
 	start := time.Now()
 	err := sq.llm.Chat(qualCtx, &loop.Request{
-		Model:    qualifierModel,
+		Model:    sq.model,
 		Messages: []loop.Message{{Role: "user", Content: prompt}},
 	}, func(resp loop.Response) error {
 		result.WriteString(resp.Content)

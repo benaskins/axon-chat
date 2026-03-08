@@ -6,9 +6,23 @@ import (
 	"time"
 )
 
+func TestNewPageFetcher_CustomModel(t *testing.T) {
+	f := NewPageFetcher(nil, "custom-model:7b")
+	if f.model != "custom-model:7b" {
+		t.Errorf("got model %q, want %q", f.model, "custom-model:7b")
+	}
+}
+
+func TestNewPageFetcher_DefaultModel(t *testing.T) {
+	f := NewPageFetcher(nil, "")
+	if f.model != defaultExtractionModel {
+		t.Errorf("got model %q, want default %q", f.model, defaultExtractionModel)
+	}
+}
+
 func TestPageFetcher_RateLimit_ConcurrentAccess(t *testing.T) {
 	// Create a fetcher with no LLM client (we're only testing rate limiting)
-	f := NewPageFetcher(nil)
+	f := NewPageFetcher(nil, "")
 
 	// Set lastFetch to now so the rate limit is active immediately
 	f.lastFetch = time.Now()

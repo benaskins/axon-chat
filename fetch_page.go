@@ -19,26 +19,32 @@ const (
 	fetchTimeout      = 10 * time.Second
 	fetchMaxBody      = 2 << 20 // 2MB
 	extractionMaxLen  = 8000    // chars sent to extraction model
-	extractionModel   = "qwen2.5:3b"
+	defaultExtractionModel = "qwen2.5:3b"
 	fetchUserAgent    = "axon-chat/1.0"
 	fetchDelayBetween = 1 * time.Second
 )
 
 // PageFetcher handles fetching web pages and extracting relevant content.
 type PageFetcher struct {
-	client *http.Client
-	llm    loop.LLMClient
-	mu     sync.Mutex
+	client    *http.Client
+	llm       loop.LLMClient
+	model     string
+	mu        sync.Mutex
 	lastFetch time.Time
 }
 
 // NewPageFetcher creates a page fetcher with the given LLM client for extraction.
-func NewPageFetcher(llm loop.LLMClient) *PageFetcher {
+// If model is empty, defaults to the built-in extraction model.
+func NewPageFetcher(llm loop.LLMClient, model string) *PageFetcher {
+	if model == "" {
+		model = defaultExtractionModel
+	}
 	return &PageFetcher{
 		client: &http.Client{
 			Timeout: fetchTimeout,
 		},
-		llm: llm,
+		llm:   llm,
+		model: model,
 	}
 }
 
@@ -167,7 +173,7 @@ Page content:
 
 	var result strings.Builder
 	err := f.llm.Chat(ctx, &loop.Request{
-		Model:    extractionModel,
+		Model:    f.model,
 		Messages: []loop.Message{{Role: "user", Content: prompt}},
 	}, func(resp loop.Response) error {
 		result.WriteString(resp.Content)
