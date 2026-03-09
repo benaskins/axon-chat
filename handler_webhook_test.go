@@ -10,7 +10,7 @@ import (
 
 func TestUserCreatedWebhook(t *testing.T) {
 	store := newMemoryStore()
-	handler := &userCreatedHandler{store: store, defaultModel: testModel}
+	handler := &userCreatedHandler{eventStore: testEventStore(store), defaultModel: testModel}
 
 	body, _ := json.Marshal(map[string]string{"user_id": "test-user"})
 	req := httptest.NewRequest(http.MethodPost, "/internal/user-created", bytes.NewReader(body))
@@ -33,7 +33,7 @@ func TestUserCreatedWebhook(t *testing.T) {
 
 func TestUserCreatedWebhook_MissingUserID(t *testing.T) {
 	store := newMemoryStore()
-	handler := &userCreatedHandler{store: store, defaultModel: testModel}
+	handler := &userCreatedHandler{eventStore: testEventStore(store), defaultModel: testModel}
 
 	body, _ := json.Marshal(map[string]string{})
 	req := httptest.NewRequest(http.MethodPost, "/internal/user-created", bytes.NewReader(body))

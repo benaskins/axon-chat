@@ -105,7 +105,29 @@ func TestNewServer_WithEventStore(t *testing.T) {
 	)
 
 	if srv.chat.eventStore != es {
-		t.Error("eventStore should be set")
+		t.Error("eventStore should be the one provided via WithEventStore")
+	}
+}
+
+func TestNewServer_DefaultsEventStore(t *testing.T) {
+	store := newMemoryStore()
+	srv := NewServer(&mockLLMClient{}, WithStore(store))
+
+	if srv.chat.eventStore == nil {
+		t.Fatal("eventStore should be auto-defaulted when store is provided")
+	}
+
+	// Verify projectors are wired by emitting an event and checking the read model
+	store.CreateUser("u1")
+	evt, _ := NewEvent("agent-u1-test", AgentCreated{Agent: Agent{UserID: "u1", Slug: "test", Name: "Test"}})
+	srv.chat.eventStore.Append(context.Background(), "agent-u1-test", []fact.Event{evt})
+
+	got, err := store.GetAgentByUser("u1", "test")
+	if err != nil {
+		t.Fatalf("projector should have created agent: %v", err)
+	}
+	if got.Name != "Test" {
+		t.Errorf("Name = %q, want Test", got.Name)
 	}
 }
 

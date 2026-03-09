@@ -52,37 +52,21 @@ func (h *conversationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if h.eventStore != nil {
-		convID := uuid.New().String()
-		stream := "conversation-" + convID
-		evt, err := NewEvent(stream, ConversationCreated{ID: convID, AgentSlug: slug, UserID: userID})
-		if err != nil {
-			slog.Error("failed to create event", "slug", slug, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
-			return
-		}
-		if err := h.eventStore.Append(r.Context(), stream, []fact.Event{evt}); err != nil {
-			slog.Error("failed to create conversation", "slug", slug, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
-			return
-		}
-		// Read back from projected read model
-		conv, err := h.store.GetConversationByUser(userID, convID)
-		if err != nil {
-			slog.Error("failed to read conversation", "id", convID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
-			return
-		}
-		axon.WriteJSON(w, http.StatusCreated, conv)
-	} else {
-		conv, err := h.store.CreateConversationForUser(userID, slug)
-		if err != nil {
-			slog.Error("failed to create conversation", "slug", slug, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
-			return
-		}
-		axon.WriteJSON(w, http.StatusCreated, conv)
+	convID := uuid.New().String()
+	stream := "conversation-" + convID
+	if err := emitEvent(r.Context(), h.eventStore, stream, ConversationCreated{ID: convID, AgentSlug: slug, UserID: userID}, nil); err != nil {
+		slog.Error("failed to create conversation", "slug", slug, "error", err)
+		axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
+		return
 	}
+	// Read back from projected read model
+	conv, err := h.store.GetConversationByUser(userID, convID)
+	if err != nil {
+		slog.Error("failed to read conversation", "id", convID, "error", err)
+		axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
+		return
+	}
+	axon.WriteJSON(w, http.StatusCreated, conv)
 }
 
 type conversationGetHandler struct {
@@ -138,21 +122,9 @@ func (h *conversationDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if h.eventStore != nil {
-		stream := "conversation-" + id
-		meta := map[string]string{"user_id": userID}
-		evt, err := NewEventWithMeta(stream, ConversationDeleted{}, meta)
-		if err != nil {
-			slog.Error("failed to create event", "id", id, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to delete conversation")
-			return
-		}
-		if err := h.eventStore.Append(r.Context(), stream, []fact.Event{evt}); err != nil {
-			slog.Error("failed to delete conversation", "id", id, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to delete conversation")
-			return
-		}
-	} else if err := h.store.DeleteConversation(userID, id); err != nil {
+	stream := "conversation-" + id
+	meta := map[string]string{"user_id": userID}
+	if err := emitEvent(r.Context(), h.eventStore, stream, ConversationDeleted{}, meta); err != nil {
 		slog.Error("failed to delete conversation", "id", id, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to delete conversation")
 		return

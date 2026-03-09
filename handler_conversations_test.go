@@ -80,10 +80,11 @@ func TestConversationListHandler_WrongMethod(t *testing.T) {
 
 func TestConversationCreateHandler_CreatesConversation(t *testing.T) {
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("u1")
 	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
 
-	handler := &conversationCreateHandler{store: store}
+	handler := &conversationCreateHandler{store: store, eventStore: es}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/agents/bot/conversations", nil)
 	req = req.WithContext(ctxWithUser("u1"))
@@ -109,9 +110,10 @@ func TestConversationCreateHandler_CreatesConversation(t *testing.T) {
 
 func TestConversationCreateHandler_AgentNotFound(t *testing.T) {
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("u1")
 
-	handler := &conversationCreateHandler{store: store}
+	handler := &conversationCreateHandler{store: store, eventStore: es}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/agents/missing/conversations", nil)
 	req = req.WithContext(ctxWithUser("u1"))
@@ -126,7 +128,7 @@ func TestConversationCreateHandler_AgentNotFound(t *testing.T) {
 
 func TestConversationCreateHandler_WrongMethod(t *testing.T) {
 	store := newMemoryStore()
-	handler := &conversationCreateHandler{store: store}
+	handler := &conversationCreateHandler{store: store, eventStore: testEventStore(store)}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents/bot/conversations", nil)
 	req = req.WithContext(ctxWithUser("u1"))
@@ -140,11 +142,12 @@ func TestConversationCreateHandler_WrongMethod(t *testing.T) {
 
 func TestConversationDeleteHandler_DeletesConversation(t *testing.T) {
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("u1")
 	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
 	conv, _ := store.CreateConversationForUser("u1", "bot")
 
-	handler := &conversationDeleteHandler{store: store}
+	handler := &conversationDeleteHandler{store: store, eventStore: es}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/conversations/"+conv.ID, nil)
 	req = req.WithContext(ctxWithUser("u1"))
@@ -165,7 +168,7 @@ func TestConversationDeleteHandler_DeletesConversation(t *testing.T) {
 
 func TestConversationDeleteHandler_NonexistentReturns404(t *testing.T) {
 	store := newMemoryStore()
-	handler := &conversationDeleteHandler{store: store}
+	handler := &conversationDeleteHandler{store: store, eventStore: testEventStore(store)}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/conversations/nonexistent", nil)
 	req = req.WithContext(ctxWithUser("u1"))
@@ -180,7 +183,7 @@ func TestConversationDeleteHandler_NonexistentReturns404(t *testing.T) {
 
 func TestConversationDeleteHandler_WrongMethod(t *testing.T) {
 	store := newMemoryStore()
-	handler := &conversationDeleteHandler{store: store}
+	handler := &conversationDeleteHandler{store: store, eventStore: testEventStore(store)}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/conversations/abc", nil)
 	req = req.WithContext(ctxWithUser("u1"))

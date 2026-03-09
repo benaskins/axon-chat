@@ -2,8 +2,8 @@ package chat
 
 import "time"
 
-// Store abstracts all persistence operations (read + write).
-// Kept for backward compatibility — new code should use ReadStore and ReadModelWriter.
+// Store combines ReadStore and ReadModelWriter. Composition roots provide a
+// concrete implementation that satisfies both interfaces.
 type Store interface {
 	ReadStore
 	ReadModelWriter

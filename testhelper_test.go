@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	fact "github.com/benaskins/axon-fact"
 	"github.com/google/uuid"
 )
 
@@ -15,6 +16,16 @@ type memoryStore struct {
 	agents        map[string]Agent
 	conversations map[string]Conversation
 	messages      map[string][]Message
+}
+
+// testEventStore creates an in-memory event store with projectors wired to the given store.
+func testEventStore(store Store) fact.EventStore {
+	projectors := DefaultProjectors(store, store)
+	var opts []fact.Option
+	for _, p := range projectors {
+		opts = append(opts, fact.WithProjector(p))
+	}
+	return fact.NewMemoryStore(opts...)
 }
 
 func newMemoryStore() *memoryStore {

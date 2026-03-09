@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/benaskins/axon"
+	fact "github.com/benaskins/axon-fact"
 	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
 )
@@ -57,6 +58,18 @@ func NewServer(llm loop.LLMClient, opts ...Option) *Server {
 	for _, opt := range opts {
 		opt(srv)
 	}
+
+	// Default to in-memory event store with projectors when a store is
+	// provided but no explicit event store was configured.
+	if srv.chat.store != nil && srv.chat.eventStore == nil {
+		projectors := DefaultProjectors(srv.chat.store, srv.chat.store)
+		var factOpts []fact.Option
+		for _, p := range projectors {
+			factOpts = append(factOpts, fact.WithProjector(p))
+		}
+		srv.chat.eventStore = fact.NewMemoryStore(factOpts...)
+	}
+
 	return srv
 }
 
@@ -169,7 +182,7 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 // UserCreatedHandler returns an http.Handler for the user-created webhook.
 func (s *Server) UserCreatedHandler() http.Handler {
-	return &userCreatedHandler{store: s.chat.store, eventStore: s.chat.eventStore, defaultModel: s.config.DefaultModel}
+	return &userCreatedHandler{eventStore: s.chat.eventStore, defaultModel: s.config.DefaultModel}
 }
 
 // InternalMessagesHandler returns an http.Handler for fetching conversation messages

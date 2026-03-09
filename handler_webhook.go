@@ -10,7 +10,6 @@ import (
 )
 
 type userCreatedHandler struct {
-	store        Store
 	eventStore   fact.EventStore
 	defaultModel string
 }
@@ -30,38 +29,16 @@ func (h *userCreatedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.eventStore != nil {
-		// Emit user.created event
-		evt, err := NewEvent("user-"+req.UserID, UserCreated{UserID: req.UserID})
-		if err != nil {
-			slog.Error("failed to create event", "user_id", req.UserID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create user")
-			return
-		}
-		if err := h.eventStore.Append(r.Context(), "user-"+req.UserID, []fact.Event{evt}); err != nil {
-			slog.Error("failed to create user", "user_id", req.UserID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create user")
-			return
-		}
+	if err := emitEvent(r.Context(), h.eventStore, "user-"+req.UserID, UserCreated{UserID: req.UserID}, nil); err != nil {
+		slog.Error("failed to create user", "user_id", req.UserID, "error", err)
+		axon.WriteError(w, http.StatusInternalServerError, "failed to create user")
+		return
+	}
 
-		// Emit agent.created events for defaults
-		if err := EmitDefaultAgents(r.Context(), h.eventStore, req.UserID, h.defaultModel); err != nil {
-			slog.Error("failed to create default agents", "user_id", req.UserID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create default agents")
-			return
-		}
-	} else {
-		// Direct store path (no event sourcing)
-		if err := h.store.CreateUser(req.UserID); err != nil {
-			slog.Error("failed to create user", "user_id", req.UserID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create user")
-			return
-		}
-		if err := CreateDefaultAgents(h.store, req.UserID, h.defaultModel); err != nil {
-			slog.Error("failed to create default agents", "user_id", req.UserID, "error", err)
-			axon.WriteError(w, http.StatusInternalServerError, "failed to create default agents")
-			return
-		}
+	if err := EmitDefaultAgents(r.Context(), h.eventStore, req.UserID, h.defaultModel); err != nil {
+		slog.Error("failed to create default agents", "user_id", req.UserID, "error", err)
+		axon.WriteError(w, http.StatusInternalServerError, "failed to create default agents")
+		return
 	}
 
 	slog.Info("user created", "user_id", req.UserID)
@@ -77,16 +54,6 @@ func EmitDefaultAgents(ctx context.Context, es fact.EventStore, userID, defaultM
 			return err
 		}
 		if err := es.Append(ctx, stream, []fact.Event{evt}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// CreateDefaultAgents creates the initial set of agents for a new user.
-func CreateDefaultAgents(store Store, userID, defaultModel string) error {
-	for _, agent := range defaultAgentSet(userID, defaultModel) {
-		if err := store.SaveAgent(agent); err != nil {
 			return err
 		}
 	}

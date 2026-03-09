@@ -252,8 +252,9 @@ func TestGetAgentHandler_NotFound(t *testing.T) {
 
 func TestSaveAgentHandler(t *testing.T) {
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("default_user")
-	handler := &agentSaveHandler{store: store}
+	handler := &agentSaveHandler{store: store, eventStore: es}
 
 	agent := testAgent()
 	body, _ := json.Marshal(agent)
@@ -284,7 +285,7 @@ func TestSaveAgentHandler(t *testing.T) {
 
 func TestSaveAgentHandler_SlugMismatch(t *testing.T) {
 	store := newMemoryStore()
-	handler := &agentSaveHandler{store: store}
+	handler := &agentSaveHandler{store: store, eventStore: testEventStore(store)}
 
 	agent := testAgent()
 	agent.Slug = "different"
@@ -302,8 +303,9 @@ func TestSaveAgentHandler_SlugMismatch(t *testing.T) {
 
 func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("default_user")
-	handler := &agentSaveHandler{store: store}
+	handler := &agentSaveHandler{store: store, eventStore: es}
 
 	agent := testAgent()
 	highTemp := 5.0
@@ -327,7 +329,7 @@ func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 
 func TestDeleteAgentHandler(t *testing.T) {
 	store := testStoreWithAgents(t, testAgent())
-	handler := &agentDeleteHandler{store: store}
+	handler := &agentDeleteHandler{store: store, eventStore: testEventStore(store)}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/agents/helper", nil)
 	req = withUserID(req, "default_user")

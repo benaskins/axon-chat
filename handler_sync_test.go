@@ -174,11 +174,13 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 	}
 
 	store := newMemoryStore()
+	es := testEventStore(store)
 	store.CreateUser("test-user")
 	store.SaveAgent(Agent{UserID: "test-user", Slug: "helper", Name: "Helper"})
 	conv, _ := store.CreateConversationForUser("test-user", "helper")
 
 	chat := newChatHandler("test-model", mockClient, store, context.Background(), nil)
+	chat.eventStore = es
 	handler := &syncChatHandler{chat: chat}
 
 	body, _ := json.Marshal(chatRequest{
@@ -196,7 +198,7 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Should have persisted both user and assistant messages
+	// Should have persisted both user and assistant messages via events
 	msgs, err := store.GetMessages(conv.ID)
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)

@@ -132,9 +132,9 @@ func WithExtraTools(tools map[string]tool.ToolDef) Option {
 	}
 }
 
-// WithEventStore sets the event store for event-sourced persistence.
-// When combined with a Store (via WithStore), projectors are auto-registered
-// to keep the read model in sync.
+// WithEventStore overrides the default in-memory event store.
+// Use this to provide a durable event store (e.g., Postgres-backed).
+// The caller is responsible for registering projectors on the provided store.
 func WithEventStore(es fact.EventStore) Option {
 	return func(s *Server) {
 		s.chat.eventStore = es

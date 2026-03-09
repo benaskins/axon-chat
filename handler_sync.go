@@ -164,28 +164,15 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.chat.analytics.Emit(events...)
 	}
 
-	// Persist messages — same as streaming handler
-	if req.ConversationID != "" && h.chat.store != nil {
+	// Persist via events — projectors update the read model
+	if req.ConversationID != "" && h.chat.eventStore != nil {
 		stream := "conversation-" + req.ConversationID
 
-		if h.chat.eventStore != nil {
-			h.chat.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
-			h.chat.emit(r.Context(), stream, MessageAppended{
-				Role: "assistant", Content: content.String(),
-				Thinking: thinking.String(), DurationMs: &durationMs,
-			}, nil)
-		} else {
-			h.chat.store.AppendMessage(req.ConversationID, Message{
-				Role:    "user",
-				Content: userContent,
-			})
-			h.chat.store.AppendMessage(req.ConversationID, Message{
-				Role:       "assistant",
-				Content:    content.String(),
-				Thinking:   thinking.String(),
-				DurationMs: &durationMs,
-			})
-		}
+		h.chat.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
+		h.chat.emit(r.Context(), stream, MessageAppended{
+			Role: "assistant", Content: content.String(),
+			Thinking: thinking.String(), DurationMs: &durationMs,
+		}, nil)
 
 		if h.chat.idleExtractor != nil && req.AgentSlug != "" {
 			h.chat.idleExtractor.Touch(req.ConversationID, req.AgentSlug, userID)

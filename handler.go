@@ -94,14 +94,7 @@ func newChatHandler(defaultModel string, llm loop.LLMClient, store Store, shutdo
 
 // emit appends a domain event to the event store. Returns nil if no event store is configured.
 func (h *chatHandler) emit(ctx context.Context, stream string, data EventTyper, meta map[string]string) error {
-	if h.eventStore == nil {
-		return nil
-	}
-	e, err := NewEventWithMeta(stream, data, meta)
-	if err != nil {
-		return err
-	}
-	return h.eventStore.Append(ctx, stream, []fact.Event{e})
+	return emitEvent(ctx, h.eventStore, stream, data, meta)
 }
 
 func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -280,28 +273,15 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 		h.analytics.Emit(userEvt, assistantEvt)
 	}
 
-	// Persist
-	if conversationID != "" && h.store != nil {
+	// Persist via events — projectors update the read model
+	if conversationID != "" && h.eventStore != nil {
 		stream := "conversation-" + conversationID
 
-		if h.eventStore != nil {
-			h.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
-			h.emit(r.Context(), stream, MessageAppended{
-				Role: "assistant", Content: result.Content,
-				Thinking: result.Thinking, DurationMs: &durationMs,
-			}, nil)
-		} else {
-			h.store.AppendMessage(conversationID, Message{
-				Role:    "user",
-				Content: userContent,
-			})
-			h.store.AppendMessage(conversationID, Message{
-				Role:       "assistant",
-				Content:    result.Content,
-				Thinking:   result.Thinking,
-				DurationMs: &durationMs,
-			})
-		}
+		h.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
+		h.emit(r.Context(), stream, MessageAppended{
+			Role: "assistant", Content: result.Content,
+			Thinking: result.Thinking, DurationMs: &durationMs,
+		}, nil)
 
 		if h.idleExtractor != nil && agentSlug != "" {
 			h.idleExtractor.Touch(conversationID, agentSlug, userID)
@@ -396,13 +376,9 @@ func (h *chatHandler) generateTitle(shutdownCtx context.Context, userID string, 
 	}
 	titleStr := sanitizeTitle(title.String())
 	if titleStr != "" {
-		if h.eventStore != nil {
-			stream := "conversation-" + conversationID
-			meta := map[string]string{"user_id": userID}
-			h.emit(ctx, stream, ConversationTitled{Title: titleStr}, meta)
-		} else {
-			h.store.UpdateConversationTitle(userID, conversationID, titleStr)
-		}
+		stream := "conversation-" + conversationID
+		meta := map[string]string{"user_id": userID}
+		h.emit(ctx, stream, ConversationTitled{Title: titleStr}, meta)
 	}
 }
 

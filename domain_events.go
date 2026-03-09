@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -37,6 +38,18 @@ func generateEventID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// emitEvent appends a domain event to the event store. Returns nil if es is nil (no-op).
+func emitEvent(ctx context.Context, es fact.EventStore, stream string, data EventTyper, meta map[string]string) error {
+	if es == nil {
+		return nil
+	}
+	evt, err := NewEventWithMeta(stream, data, meta)
+	if err != nil {
+		return err
+	}
+	return es.Append(ctx, stream, []fact.Event{evt})
 }
 
 // User events
