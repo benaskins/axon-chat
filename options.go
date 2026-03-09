@@ -34,6 +34,14 @@ func WithCookieDomain(domain string) Option {
 	}
 }
 
+// WithAuthLoginURL sets the external auth service login URL.
+// The SvelteKit frontend redirects here when the user is not authenticated.
+func WithAuthLoginURL(url string) Option {
+	return func(s *Server) {
+		s.config.AuthLoginURL = url
+	}
+}
+
 // WithStaticFiles sets the embedded filesystem for the SvelteKit frontend.
 func WithStaticFiles(fs *embed.FS) Option {
 	return func(s *Server) {

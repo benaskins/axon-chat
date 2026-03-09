@@ -3,6 +3,9 @@ package chat
 import (
 	"context"
 	"embed"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	fact "github.com/benaskins/axon-fact"
@@ -47,6 +50,14 @@ func TestNewServer_WithCookieDomain(t *testing.T) {
 
 	if srv.config.CookieDomain != "studio.internal" {
 		t.Errorf("CookieDomain = %q, want studio.internal", srv.config.CookieDomain)
+	}
+}
+
+func TestNewServer_WithAuthLoginURL(t *testing.T) {
+	srv := NewServer(&mockLLMClient{}, WithAuthLoginURL("https://auth.studio.internal/login"))
+
+	if srv.config.AuthLoginURL != "https://auth.studio.internal/login" {
+		t.Errorf("AuthLoginURL = %q, want https://auth.studio.internal/login", srv.config.AuthLoginURL)
 	}
 }
 
@@ -227,4 +238,55 @@ type mockModelLister struct{}
 
 func (m *mockModelLister) ListModels(ctx context.Context) ([]string, error) {
 	return []string{"test-model"}, nil
+}
+
+func TestWithAuthConfig_InjectsScript(t *testing.T) {
+	srv := NewServer(&mockLLMClient{},
+		WithStaticFiles(&StaticFiles),
+		WithAuthLoginURL("https://auth.studio.internal/login"),
+	)
+	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.studio.internal/login"`) {
+		t.Errorf("index.html missing __AUTH_URL__ injection, got:\n%s", body[:min(200, len(body))])
+	}
+}
+
+func TestWithAuthConfig_StaticAssetsNotInjected(t *testing.T) {
+	srv := NewServer(&mockLLMClient{},
+		WithStaticFiles(&StaticFiles),
+		WithAuthLoginURL("https://auth.studio.internal/login"),
+	)
+	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest("GET", "/_app/version.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if strings.Contains(body, "__AUTH_URL__") {
+		t.Error("static asset should not contain injected __AUTH_URL__")
+	}
+}
+
+func TestWithAuthConfig_SPAFallbackInjected(t *testing.T) {
+	srv := NewServer(&mockLLMClient{},
+		WithStaticFiles(&StaticFiles),
+		WithAuthLoginURL("https://auth.studio.internal/login"),
+	)
+	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.studio.internal/login"`) {
+		t.Errorf("/login should get injected index.html, got:\n%s", body[:min(200, len(body))])
+	}
 }

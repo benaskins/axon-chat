@@ -1,8 +1,10 @@
 package chat
 
 import (
+	"bytes"
 	"context"
 	"embed"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -173,7 +175,11 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 
 	// SPA fallback for Svelte frontend
 	if s.staticFiles != nil {
-		mux.Handle("/", axon.SPAHandler(*s.staticFiles, "static"))
+		spa := axon.SPAHandler(*s.staticFiles, "static", axon.WithStaticPrefix("/_app/"))
+		if s.config.AuthLoginURL != "" {
+			spa = withAuthConfig(spa, *s.staticFiles, s.config.AuthLoginURL)
+		}
+		mux.Handle("/", spa)
 	}
 
 	s.mux = mux
@@ -200,4 +206,36 @@ func (s *Server) InternalAgentHandler() http.Handler {
 // WaitForBackgroundTasks blocks until all background tasks complete.
 func (s *Server) WaitForBackgroundTasks() {
 	s.chat.WaitForBackgroundTasks()
+}
+
+// withAuthConfig wraps an SPA handler to inject the auth login URL into index.html.
+// It reads the original index.html once at startup and injects a <script> tag
+// that sets window.__AUTH_URL__ before any other scripts run.
+func withAuthConfig(next http.Handler, files embed.FS, authLoginURL string) http.Handler {
+	staticSub, err := fs.Sub(files, "static")
+	if err != nil {
+		slog.Error("withAuthConfig: failed to create sub filesystem", "error", err)
+		return next
+	}
+
+	original, err := fs.ReadFile(staticSub, "index.html")
+	if err != nil {
+		slog.Error("withAuthConfig: failed to read index.html", "error", err)
+		return next
+	}
+
+	configScript := []byte(`<script>window.__AUTH_URL__="` + authLoginURL + `";</script>`)
+	injected := bytes.Replace(original, []byte("<head>"), append([]byte("<head>"), configScript...), 1)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Serve static assets directly via the SPA handler
+		if _, err := fs.Stat(staticSub, r.URL.Path[1:]); err == nil && r.URL.Path != "/" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// All other paths are SPA fallback — serve injected index.html
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(injected)
+	})
 }
