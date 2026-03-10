@@ -335,6 +335,18 @@ func BuildToolsForAgent(a Agent) []tool.ToolDef {
 					},
 				},
 			})
+		case "recall_memory":
+			defs = append(defs, tool.ToolDef{
+				Name:        "recall_memory",
+				Description: "Search past conversations and memories.",
+				Parameters: tool.ParameterSchema{
+					Type:     "object",
+					Required: []string{"query"},
+					Properties: map[string]tool.PropertySchema{
+						"query": {Type: "string", Description: "What to search memory for."},
+					},
+				},
+			})
 		}
 	}
 	return defs
