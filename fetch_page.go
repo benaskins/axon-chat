@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -101,6 +102,30 @@ func (f *PageFetcher) FetchAndExtract(ctx context.Context, rawURL, question stri
 	return extracted, nil
 }
 
+// isPrivateIP checks if an IP address is in a private/reserved range (SSRF protection).
+func isPrivateIP(ip net.IP) bool {
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+	for _, cidr := range privateRanges {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate()
+}
+
 func (f *PageFetcher) fetchPage(ctx context.Context, rawURL string) (string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -108,6 +133,18 @@ func (f *PageFetcher) fetchPage(ctx context.Context, rawURL string) (string, err
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", fmt.Errorf("unsupported URL scheme: %s", parsed.Scheme)
+	}
+
+	// SSRF protection: resolve the hostname and reject private/internal IPs
+	host := parsed.Hostname()
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve host: %s", host)
+	}
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return "", fmt.Errorf("access to internal addresses is not allowed")
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)

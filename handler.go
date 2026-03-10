@@ -277,11 +277,15 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	if conversationID != "" && h.eventStore != nil {
 		stream := "conversation-" + conversationID
 
-		h.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
-		h.emit(r.Context(), stream, MessageAppended{
+		if err := h.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil); err != nil {
+			slog.Error("failed to emit user message event", "error", err, "conversation_id", conversationID)
+		}
+		if err := h.emit(r.Context(), stream, MessageAppended{
 			Role: "assistant", Content: result.Content,
 			Thinking: result.Thinking, DurationMs: &durationMs,
-		}, nil)
+		}, nil); err != nil {
+			slog.Error("failed to emit assistant message event", "error", err, "conversation_id", conversationID)
+		}
 
 		if h.idleExtractor != nil && agentSlug != "" {
 			h.idleExtractor.Touch(conversationID, agentSlug, userID)
