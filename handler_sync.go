@@ -135,7 +135,8 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err := loop.Run(r.Context(), h.chat.llm, agentReq, tools, toolCtx, cb)
 	if err != nil {
 		chatRequestsTotal.WithLabelValues(model, "error").Inc()
-		axon.WriteError(w, http.StatusInternalServerError, "agent error: "+err.Error())
+		slog.Error("sync chat agent error", "error", err, "model", model)
+		axon.WriteError(w, http.StatusInternalServerError, "chat request failed")
 		return
 	}
 
@@ -168,11 +169,15 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if req.ConversationID != "" && h.chat.eventStore != nil {
 		stream := "conversation-" + req.ConversationID
 
-		h.chat.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil)
-		h.chat.emit(r.Context(), stream, MessageAppended{
+		if err := h.chat.emit(r.Context(), stream, MessageAppended{Role: "user", Content: userContent}, nil); err != nil {
+			slog.Error("failed to emit user message event", "error", err, "conversation_id", req.ConversationID)
+		}
+		if err := h.chat.emit(r.Context(), stream, MessageAppended{
 			Role: "assistant", Content: content.String(),
 			Thinking: thinking.String(), DurationMs: &durationMs,
-		}, nil)
+		}, nil); err != nil {
+			slog.Error("failed to emit assistant message event", "error", err, "conversation_id", req.ConversationID)
+		}
 
 		if h.chat.idleExtractor != nil && req.AgentSlug != "" {
 			h.chat.idleExtractor.Touch(req.ConversationID, req.AgentSlug, userID)
