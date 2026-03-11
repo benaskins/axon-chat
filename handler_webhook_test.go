@@ -2,6 +2,7 @@ package chat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +23,7 @@ func TestUserCreatedWebhook(t *testing.T) {
 	}
 
 	// Verify default agents were created
-	agents, err := store.ListAgentsByUser("test-user")
+	agents, err := store.ListAgentsByUser(context.Background(), "test-user")
 	if err != nil {
 		t.Fatalf("ListAgents failed: %v", err)
 	}

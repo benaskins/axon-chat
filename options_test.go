@@ -129,11 +129,11 @@ func TestNewServer_DefaultsEventStore(t *testing.T) {
 	}
 
 	// Verify projectors are wired by emitting an event and checking the read model
-	store.CreateUser("u1")
+	store.CreateUser(context.Background(), "u1")
 	evt, _ := NewEvent("agent-u1-test", AgentCreated{Agent: Agent{UserID: "u1", Slug: "test", Name: "Test"}})
 	srv.chat.eventStore.Append(context.Background(), "agent-u1-test", []fact.Event{evt})
 
-	got, err := store.GetAgentByUser("u1", "test")
+	got, err := store.GetAgentByUser(context.Background(), "u1", "test")
 	if err != nil {
 		t.Fatalf("projector should have created agent: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestEventStore_AgentSaveEmitsEvent(t *testing.T) {
 	}
 
 	// Verify the projector updated the read model
-	got, err := store.GetAgentByUser("u1", "writer")
+	got, err := store.GetAgentByUser(context.Background(), "u1", "writer")
 	if err != nil {
 		t.Fatalf("GetAgentByUser: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestEventStore_ConversationFlowEmitsEvents(t *testing.T) {
 	es.Append(context.Background(), "conversation-c1", []fact.Event{evt})
 
 	// Verify read model
-	conv, err := store.GetConversationByUser("u1", "c1")
+	conv, err := store.GetConversationByUser(context.Background(), "u1", "c1")
 	if err != nil {
 		t.Fatalf("GetConversationByUser: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestEventStore_ConversationFlowEmitsEvents(t *testing.T) {
 		t.Errorf("Title = %v, want Greeting", conv.Title)
 	}
 
-	msgs, _ := store.GetMessages("c1")
+	msgs, _ := store.GetMessages(context.Background(), "c1")
 	if len(msgs) != 1 || msgs[0].Content != "hello" {
 		t.Errorf("messages = %+v", msgs)
 	}

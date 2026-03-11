@@ -38,10 +38,11 @@ func testAgent() Agent {
 
 func testStoreWithAgents(t *testing.T, agents ...Agent) *memoryStore {
 	t.Helper()
+	ctx := context.Background()
 	store := newMemoryStore()
-	store.CreateUser("default_user")
+	store.CreateUser(ctx, "default_user")
 	for _, a := range agents {
-		if err := store.SaveAgent(a); err != nil {
+		if err := store.SaveAgent(ctx, a); err != nil {
 			t.Fatalf("failed to seed agent: %v", err)
 		}
 	}
@@ -179,7 +180,7 @@ func TestListAgentsHandler(t *testing.T) {
 
 func TestListAgentsHandler_Empty(t *testing.T) {
 	store := newMemoryStore()
-	store.CreateUser("default_user")
+	store.CreateUser(context.Background(), "default_user")
 	handler := &agentsListHandler{store: store}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents", nil)
@@ -236,7 +237,7 @@ func TestGetAgentHandler(t *testing.T) {
 
 func TestGetAgentHandler_NotFound(t *testing.T) {
 	store := newMemoryStore()
-	store.CreateUser("default_user")
+	store.CreateUser(context.Background(), "default_user")
 	handler := &agentDetailHandler{store: store}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents/nonexistent", nil)
@@ -253,7 +254,7 @@ func TestGetAgentHandler_NotFound(t *testing.T) {
 func TestSaveAgentHandler(t *testing.T) {
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("default_user")
+	store.CreateUser(context.Background(), "default_user")
 	handler := &agentSaveHandler{store: store, eventStore: es}
 
 	agent := testAgent()
@@ -268,7 +269,7 @@ func TestSaveAgentHandler(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	saved, err := store.GetAgentByUser("default_user", "helper")
+	saved, err := store.GetAgentByUser(context.Background(), "default_user", "helper")
 	if err != nil {
 		t.Fatalf("expected agent to be stored: %v", err)
 	}
@@ -304,7 +305,7 @@ func TestSaveAgentHandler_SlugMismatch(t *testing.T) {
 func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("default_user")
+	store.CreateUser(context.Background(), "default_user")
 	handler := &agentSaveHandler{store: store, eventStore: es}
 
 	agent := testAgent()
@@ -321,7 +322,7 @@ func TestSaveAgentHandler_TemperatureClamped(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	saved, _ := store.GetAgentByUser("default_user", "helper")
+	saved, _ := store.GetAgentByUser(context.Background(), "default_user", "helper")
 	if saved.Temperature == nil || *saved.Temperature != 2.0 {
 		t.Errorf("expected temperature clamped to 2.0, got %v", saved.Temperature)
 	}
@@ -341,7 +342,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Errorf("expected 204, got %d", w.Code)
 	}
 
-	_, err := store.GetAgentByUser("default_user", "helper")
+	_, err := store.GetAgentByUser(context.Background(), "default_user", "helper")
 	if err == nil {
 		t.Error("expected agent to be deleted")
 	}

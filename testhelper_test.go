@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -39,20 +40,20 @@ func newMemoryStore() *memoryStore {
 
 func memAgentKey(userID, slug string) string { return userID + "/" + slug }
 
-func (s *memoryStore) CreateUser(id string) error {
+func (s *memoryStore) CreateUser(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.users[id] = true
 	return nil
 }
 
-func (s *memoryStore) UserExists(id string) (bool, error) {
+func (s *memoryStore) UserExists(_ context.Context, id string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.users[id], nil
 }
 
-func (s *memoryStore) ListAgentsByUser(userID string) ([]AgentSummary, error) {
+func (s *memoryStore) ListAgentsByUser(_ context.Context, userID string) ([]AgentSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var result []AgentSummary
@@ -67,7 +68,7 @@ func (s *memoryStore) ListAgentsByUser(userID string) ([]AgentSummary, error) {
 	return result, nil
 }
 
-func (s *memoryStore) GetAgentByUser(userID, slug string) (*Agent, error) {
+func (s *memoryStore) GetAgentByUser(_ context.Context, userID, slug string) (*Agent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	a, ok := s.agents[memAgentKey(userID, slug)]
@@ -78,7 +79,7 @@ func (s *memoryStore) GetAgentByUser(userID, slug string) (*Agent, error) {
 	return &cp, nil
 }
 
-func (s *memoryStore) GetAgentBySlug(slug string) (*Agent, error) {
+func (s *memoryStore) GetAgentBySlug(_ context.Context, slug string) (*Agent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, a := range s.agents {
@@ -90,21 +91,21 @@ func (s *memoryStore) GetAgentBySlug(slug string) (*Agent, error) {
 	return nil, fmt.Errorf("agent not found")
 }
 
-func (s *memoryStore) SaveAgent(agent Agent) error {
+func (s *memoryStore) SaveAgent(_ context.Context, agent Agent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.agents[memAgentKey(agent.UserID, agent.Slug)] = agent
 	return nil
 }
 
-func (s *memoryStore) DeleteAgent(userID, slug string) error {
+func (s *memoryStore) DeleteAgent(_ context.Context, userID, slug string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.agents, memAgentKey(userID, slug))
 	return nil
 }
 
-func (s *memoryStore) ListConversationsByUser(userID string, agentSlug string) ([]ConversationSummary, error) {
+func (s *memoryStore) ListConversationsByUser(_ context.Context, userID string, agentSlug string) ([]ConversationSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var result []ConversationSummary
@@ -122,7 +123,7 @@ func (s *memoryStore) ListConversationsByUser(userID string, agentSlug string) (
 	return result, nil
 }
 
-func (s *memoryStore) GetConversationByUser(userID string, id string) (*Conversation, error) {
+func (s *memoryStore) GetConversationByUser(_ context.Context, userID string, id string) (*Conversation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c, ok := s.conversations[id]
@@ -132,11 +133,11 @@ func (s *memoryStore) GetConversationByUser(userID string, id string) (*Conversa
 	return &c, nil
 }
 
-func (s *memoryStore) CreateConversationForUser(userID string, agentSlug string) (*Conversation, error) {
-	return s.CreateConversationWithID(uuid.New().String(), userID, agentSlug)
+func (s *memoryStore) CreateConversationForUser(ctx context.Context, userID string, agentSlug string) (*Conversation, error) {
+	return s.CreateConversationWithID(ctx, uuid.New().String(), userID, agentSlug)
 }
 
-func (s *memoryStore) CreateConversationWithID(id, userID, agentSlug string) (*Conversation, error) {
+func (s *memoryStore) CreateConversationWithID(_ context.Context, id, userID, agentSlug string) (*Conversation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
@@ -148,7 +149,7 @@ func (s *memoryStore) CreateConversationWithID(id, userID, agentSlug string) (*C
 	return &c, nil
 }
 
-func (s *memoryStore) UpdateConversationTitle(userID string, id string, title string) error {
+func (s *memoryStore) UpdateConversationTitle(_ context.Context, userID string, id string, title string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.conversations[id]
@@ -161,7 +162,7 @@ func (s *memoryStore) UpdateConversationTitle(userID string, id string, title st
 	return nil
 }
 
-func (s *memoryStore) DeleteConversation(userID string, id string) error {
+func (s *memoryStore) DeleteConversation(_ context.Context, userID string, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.conversations, id)
@@ -169,7 +170,7 @@ func (s *memoryStore) DeleteConversation(userID string, id string) error {
 	return nil
 }
 
-func (s *memoryStore) GetMessages(conversationID string) ([]Message, error) {
+func (s *memoryStore) GetMessages(_ context.Context, conversationID string) ([]Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	msgs := s.messages[conversationID]
@@ -179,7 +180,7 @@ func (s *memoryStore) GetMessages(conversationID string) ([]Message, error) {
 	return msgs, nil
 }
 
-func (s *memoryStore) GetRecentMessages(conversationID string, limit int) ([]Message, error) {
+func (s *memoryStore) GetRecentMessages(_ context.Context, conversationID string, limit int) ([]Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	msgs := s.messages[conversationID]
@@ -192,7 +193,7 @@ func (s *memoryStore) GetRecentMessages(conversationID string, limit int) ([]Mes
 	return msgs, nil
 }
 
-func (s *memoryStore) AppendMessage(conversationID string, msg Message) error {
+func (s *memoryStore) AppendMessage(_ context.Context, conversationID string, msg Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if msg.ID == "" {

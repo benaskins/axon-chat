@@ -47,7 +47,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Verify agent ownership
 	if req.AgentSlug != "" && h.chat.store != nil {
 		userID := axon.UserID(r.Context())
-		if _, err := h.chat.store.GetAgentByUser(userID, req.AgentSlug); err != nil {
+		if _, err := h.chat.store.GetAgentByUser(r.Context(), userID, req.AgentSlug); err != nil {
 			axon.WriteError(w, http.StatusNotFound, "agent not found")
 			return
 		}
@@ -183,7 +183,7 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.chat.idleExtractor.Touch(req.ConversationID, req.AgentSlug, userID)
 		}
 
-		conv, err := h.chat.store.GetConversationByUser(userID, req.ConversationID)
+		conv, err := h.chat.store.GetConversationByUser(r.Context(), userID, req.ConversationID)
 		if err == nil && conv.Title == nil {
 			h.chat.bgTasks.Add(1)
 			go func() {

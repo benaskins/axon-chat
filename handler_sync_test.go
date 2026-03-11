@@ -173,11 +173,12 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("test-user")
-	store.SaveAgent(Agent{UserID: "test-user", Slug: "helper", Name: "Helper"})
-	conv, _ := store.CreateConversationForUser("test-user", "helper")
+	store.CreateUser(ctx, "test-user")
+	store.SaveAgent(ctx, Agent{UserID: "test-user", Slug: "helper", Name: "Helper"})
+	conv, _ := store.CreateConversationForUser(ctx, "test-user", "helper")
 
 	chat := newChatHandler("test-model", mockClient, store, context.Background(), nil)
 	chat.eventStore = es
@@ -189,7 +190,7 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 		Messages:       []loop.Message{{Role: "user", Content: "How are you?"}},
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/sync", bytes.NewReader(body))
-	ctx := context.WithValue(req.Context(), axon.UserIDKey, "test-user")
+	ctx = context.WithValue(req.Context(), axon.UserIDKey, "test-user")
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -199,7 +200,7 @@ func TestSyncChatEndpoint_PersistsMessages(t *testing.T) {
 	}
 
 	// Should have persisted both user and assistant messages via events
-	msgs, err := store.GetMessages(conv.ID)
+	msgs, err := store.GetMessages(context.Background(), conv.ID)
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)
 	}
