@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,12 +9,13 @@ import (
 )
 
 func TestInternalMessagesHandler(t *testing.T) {
+	ctx := context.Background()
 	store := newMemoryStore()
-	store.CreateUser("u1")
-	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
-	convo, _ := store.CreateConversationForUser("u1", "bot")
-	store.AppendMessage(convo.ID, Message{Role: "user", Content: "hello"})
-	store.AppendMessage(convo.ID, Message{Role: "assistant", Content: "hi"})
+	store.CreateUser(ctx, "u1")
+	store.SaveAgent(ctx, Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
+	convo, _ := store.CreateConversationForUser(ctx, "u1", "bot")
+	store.AppendMessage(ctx, convo.ID, Message{Role: "user", Content: "hello"})
+	store.AppendMessage(ctx, convo.ID, Message{Role: "assistant", Content: "hi"})
 
 	handler := &internalMessagesHandler{store: store}
 
@@ -57,7 +59,7 @@ func TestInternalMessagesHandler_EmptyConversation(t *testing.T) {
 
 func TestInternalAgentHandler(t *testing.T) {
 	store := newMemoryStore()
-	store.SaveAgent(Agent{
+	store.SaveAgent(context.Background(), Agent{
 		UserID:       "u1",
 		Slug:         "bot",
 		Name:         "Bot",

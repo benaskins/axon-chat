@@ -19,7 +19,7 @@ func (h *internalMessagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	messages, err := h.store.GetMessages(conversationID)
+	messages, err := h.store.GetMessages(r.Context(), conversationID)
 	if err != nil {
 		axon.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -47,7 +47,7 @@ func (h *internalAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	agent, err := h.store.GetAgentBySlug(slug)
+	agent, err := h.store.GetAgentBySlug(r.Context(), slug)
 	if err != nil {
 		axon.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "agent not found"})
 		return

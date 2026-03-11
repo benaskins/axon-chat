@@ -30,7 +30,7 @@ func TestUserProjector_Created(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	exists, _ := store.UserExists("u1")
+	exists, _ := store.UserExists(context.Background(), "u1")
 	if !exists {
 		t.Error("user should exist after user.created event")
 	}
@@ -58,7 +58,7 @@ func TestAgentProjector_Created(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	got, err := store.GetAgentByUser("u1", "writer")
+	got, err := store.GetAgentByUser(context.Background(), "u1", "writer")
 	if err != nil {
 		t.Fatalf("GetAgentByUser: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestAgentProjector_Updated(t *testing.T) {
 	agent.Name = "Senior Writer"
 	p.Handle(context.Background(), newTestEvent("agent-u1-writer", "agent.updated", AgentUpdated{Agent: agent}))
 
-	got, _ := store.GetAgentByUser("u1", "writer")
+	got, _ := store.GetAgentByUser(context.Background(), "u1", "writer")
 	if got.Name != "Senior Writer" {
 		t.Errorf("Name = %q, want Senior Writer", got.Name)
 	}
@@ -97,7 +97,7 @@ func TestAgentProjector_Deleted(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	_, err := store.GetAgentByUser("u1", "writer")
+	_, err := store.GetAgentByUser(context.Background(), "u1", "writer")
 	if err == nil {
 		t.Error("agent should be deleted")
 	}
@@ -118,7 +118,7 @@ func TestConversationProjector_Created(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	got, err := store.GetConversationByUser("u1", "c1")
+	got, err := store.GetConversationByUser(context.Background(), "u1", "c1")
 	if err != nil {
 		t.Fatalf("GetConversationByUser: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestConversationProjector_MessageAppended(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	msgs, _ := store.GetMessages("c1")
+	msgs, _ := store.GetMessages(context.Background(), "c1")
 	if len(msgs) != 1 {
 		t.Fatalf("got %d messages, want 1", len(msgs))
 	}
@@ -166,7 +166,7 @@ func TestConversationProjector_Titled(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	got, _ := store.GetConversationByUser("u1", "c1")
+	got, _ := store.GetConversationByUser(context.Background(), "u1", "c1")
 	if got.Title == nil || *got.Title != "Go Design" {
 		t.Errorf("Title = %v", got.Title)
 	}
@@ -186,7 +186,7 @@ func TestConversationProjector_Deleted(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	_, err := store.GetConversationByUser("u1", "c1")
+	_, err := store.GetConversationByUser(context.Background(), "u1", "c1")
 	if err == nil {
 		t.Error("conversation should be deleted")
 	}

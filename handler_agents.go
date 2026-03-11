@@ -57,9 +57,10 @@ func (h *agentsListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 
-	summaries, err := h.store.ListAgentsByUser(userID)
+	summaries, err := h.store.ListAgentsByUser(ctx, userID)
 	if err != nil {
 		slog.Error("failed to list agents", "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to list agents")
@@ -80,14 +81,15 @@ func (h *agentDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 	slug := r.PathValue("slug")
 	if slug == "" {
 		axon.WriteError(w, http.StatusBadRequest, "slug is required")
 		return
 	}
 
-	agent, err := h.store.GetAgentByUser(userID, slug)
+	agent, err := h.store.GetAgentByUser(ctx, userID, slug)
 	if err != nil {
 		axon.WriteError(w, http.StatusNotFound, "agent not found")
 		return
@@ -213,7 +215,8 @@ func (h *agentSaveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine if this is a create or update
-	existing, _ := h.store.GetAgentByUser(userID, slug)
+	ctx := r.Context()
+	existing, _ := h.store.GetAgentByUser(ctx, userID, slug)
 	var eventData EventTyper
 	if existing == nil {
 		eventData = AgentCreated{Agent: agent}

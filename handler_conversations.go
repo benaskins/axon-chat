@@ -19,9 +19,10 @@ func (h *conversationListHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 	slug := r.PathValue("slug")
-	convos, err := h.store.ListConversationsByUser(userID, slug)
+	convos, err := h.store.ListConversationsByUser(ctx, userID, slug)
 	if err != nil {
 		slog.Error("failed to list conversations", "slug", slug, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to list conversations")
@@ -42,11 +43,12 @@ func (h *conversationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 	slug := r.PathValue("slug")
 
 	// Verify agent exists
-	_, err := h.store.GetAgentByUser(userID, slug)
+	_, err := h.store.GetAgentByUser(ctx, userID, slug)
 	if err != nil {
 		axon.WriteError(w, http.StatusNotFound, "agent not found")
 		return
@@ -60,7 +62,7 @@ func (h *conversationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	// Read back from projected read model
-	conv, err := h.store.GetConversationByUser(userID, convID)
+	conv, err := h.store.GetConversationByUser(ctx, userID, convID)
 	if err != nil {
 		slog.Error("failed to read conversation", "id", convID, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to create conversation")
@@ -79,16 +81,17 @@ func (h *conversationGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 	id := r.PathValue("id")
 
-	conv, err := h.store.GetConversationByUser(userID, id)
+	conv, err := h.store.GetConversationByUser(ctx, userID, id)
 	if err != nil {
 		axon.WriteError(w, http.StatusNotFound, "conversation not found")
 		return
 	}
 
-	msgs, err := h.store.GetMessages(id)
+	msgs, err := h.store.GetMessages(ctx, id)
 	if err != nil {
 		slog.Error("failed to get messages", "id", id, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to get messages")
@@ -114,10 +117,11 @@ func (h *conversationDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	userID := axon.UserID(r.Context())
+	ctx := r.Context()
+	userID := axon.UserID(ctx)
 	id := r.PathValue("id")
 
-	if _, err := h.store.GetConversationByUser(userID, id); err != nil {
+	if _, err := h.store.GetConversationByUser(ctx, userID, id); err != nil {
 		axon.WriteError(w, http.StatusNotFound, "conversation not found")
 		return
 	}

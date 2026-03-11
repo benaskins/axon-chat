@@ -15,11 +15,12 @@ func ctxWithUser(userID string) context.Context {
 }
 
 func TestConversationListHandler_ReturnsConversations(t *testing.T) {
+	ctx := context.Background()
 	store := newMemoryStore()
-	store.CreateUser("u1")
-	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
-	store.CreateConversationForUser("u1", "bot")
-	store.CreateConversationForUser("u1", "bot")
+	store.CreateUser(ctx, "u1")
+	store.SaveAgent(ctx, Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
+	store.CreateConversationForUser(ctx, "u1", "bot")
+	store.CreateConversationForUser(ctx, "u1", "bot")
 
 	handler := &conversationListHandler{store: store}
 
@@ -79,10 +80,11 @@ func TestConversationListHandler_WrongMethod(t *testing.T) {
 }
 
 func TestConversationCreateHandler_CreatesConversation(t *testing.T) {
+	ctx := context.Background()
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("u1")
-	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
+	store.CreateUser(ctx, "u1")
+	store.SaveAgent(ctx, Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
 
 	handler := &conversationCreateHandler{store: store, eventStore: es}
 
@@ -111,7 +113,7 @@ func TestConversationCreateHandler_CreatesConversation(t *testing.T) {
 func TestConversationCreateHandler_AgentNotFound(t *testing.T) {
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("u1")
+	store.CreateUser(context.Background(), "u1")
 
 	handler := &conversationCreateHandler{store: store, eventStore: es}
 
@@ -141,11 +143,12 @@ func TestConversationCreateHandler_WrongMethod(t *testing.T) {
 }
 
 func TestConversationDeleteHandler_DeletesConversation(t *testing.T) {
+	ctx := context.Background()
 	store := newMemoryStore()
 	es := testEventStore(store)
-	store.CreateUser("u1")
-	store.SaveAgent(Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
-	conv, _ := store.CreateConversationForUser("u1", "bot")
+	store.CreateUser(ctx, "u1")
+	store.SaveAgent(ctx, Agent{UserID: "u1", Slug: "bot", Name: "Bot"})
+	conv, _ := store.CreateConversationForUser(ctx, "u1", "bot")
 
 	handler := &conversationDeleteHandler{store: store, eventStore: es}
 
@@ -160,7 +163,7 @@ func TestConversationDeleteHandler_DeletesConversation(t *testing.T) {
 	}
 
 	// Verify it's gone
-	_, err := store.GetConversationByUser("u1", conv.ID)
+	_, err := store.GetConversationByUser(context.Background(), "u1", conv.ID)
 	if err == nil {
 		t.Error("expected conversation to be deleted")
 	}

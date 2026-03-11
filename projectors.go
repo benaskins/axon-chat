@@ -34,7 +34,7 @@ func (p *UserProjector) Handle(ctx context.Context, e fact.Event) error {
 		if err := json.Unmarshal(e.Data, &data); err != nil {
 			return err
 		}
-		return p.store.CreateUser(data.UserID)
+		return p.store.CreateUser(ctx, data.UserID)
 	}
 	return nil
 }
@@ -55,19 +55,19 @@ func (p *AgentProjector) Handle(ctx context.Context, e fact.Event) error {
 		if err := json.Unmarshal(e.Data, &data); err != nil {
 			return err
 		}
-		return p.store.SaveAgent(data.Agent)
+		return p.store.SaveAgent(ctx, data.Agent)
 
 	case "agent.updated":
 		var data AgentUpdated
 		if err := json.Unmarshal(e.Data, &data); err != nil {
 			return err
 		}
-		return p.store.SaveAgent(data.Agent)
+		return p.store.SaveAgent(ctx, data.Agent)
 
 	case "agent.deleted":
 		userID := e.Metadata["user_id"]
 		slug := e.Metadata["slug"]
-		return p.store.DeleteAgent(userID, slug)
+		return p.store.DeleteAgent(ctx, userID, slug)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (p *ConversationProjector) Handle(ctx context.Context, e fact.Event) error 
 		if err := json.Unmarshal(e.Data, &data); err != nil {
 			return err
 		}
-		_, err := p.store.CreateConversationWithID(data.ID, data.UserID, data.AgentSlug)
+		_, err := p.store.CreateConversationWithID(ctx, data.ID, data.UserID, data.AgentSlug)
 		return err
 
 	case "message.appended":
@@ -98,7 +98,7 @@ func (p *ConversationProjector) Handle(ctx context.Context, e fact.Event) error 
 		if err := json.Unmarshal(e.Data, &data); err != nil {
 			return err
 		}
-		return p.store.AppendMessage(convID, Message{
+		return p.store.AppendMessage(ctx, convID, Message{
 			ID:         data.ID,
 			Role:       data.Role,
 			Content:    data.Content,
@@ -114,11 +114,11 @@ func (p *ConversationProjector) Handle(ctx context.Context, e fact.Event) error 
 			return err
 		}
 		userID := e.Metadata["user_id"]
-		return p.store.UpdateConversationTitle(userID, convID, data.Title)
+		return p.store.UpdateConversationTitle(ctx, userID, convID, data.Title)
 
 	case "conversation.deleted":
 		userID := e.Metadata["user_id"]
-		return p.store.DeleteConversation(userID, convID)
+		return p.store.DeleteConversation(ctx, userID, convID)
 	}
 	return nil
 }
