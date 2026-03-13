@@ -9,7 +9,6 @@ import (
 	"time"
 
 	chat "github.com/benaskins/axon-chat"
-
 	"github.com/google/uuid"
 )
 
@@ -76,7 +75,7 @@ func (s *MemoryStore) GetAgentByUser(_ context.Context, userID, slug string) (*c
 	defer s.mu.RUnlock()
 	a, ok := s.agents[agentKey(userID, slug)]
 	if !ok {
-		return nil, fmt.Errorf("agent not found")
+		return nil, fmt.Errorf("%s: %w", slug, chat.ErrAgentNotFound)
 	}
 	cp := a
 	return &cp, nil
@@ -91,7 +90,7 @@ func (s *MemoryStore) GetAgentBySlug(_ context.Context, slug string) (*chat.Agen
 			return &cp, nil
 		}
 	}
-	return nil, fmt.Errorf("agent not found")
+	return nil, fmt.Errorf("%s: %w", slug, chat.ErrAgentNotFound)
 }
 
 func (s *MemoryStore) SaveAgent(_ context.Context, agent chat.Agent) error {
@@ -137,7 +136,7 @@ func (s *MemoryStore) GetConversationByUser(_ context.Context, userID string, id
 	defer s.mu.RUnlock()
 	c, ok := s.conversations[id]
 	if !ok || c.UserID != userID {
-		return nil, fmt.Errorf("conversation not found: %s", id)
+		return nil, fmt.Errorf("%s: %w", id, chat.ErrConversationNotFound)
 	}
 	return &c, nil
 }
@@ -166,7 +165,7 @@ func (s *MemoryStore) UpdateConversationTitle(_ context.Context, userID string, 
 	defer s.mu.Unlock()
 	c, ok := s.conversations[id]
 	if !ok || c.UserID != userID {
-		return fmt.Errorf("conversation not found")
+		return fmt.Errorf("%s: %w", id, chat.ErrConversationNotFound)
 	}
 	c.Title = &title
 	c.UpdatedAt = time.Now()
@@ -179,7 +178,7 @@ func (s *MemoryStore) DeleteConversation(_ context.Context, userID string, id st
 	defer s.mu.Unlock()
 	c, ok := s.conversations[id]
 	if !ok || c.UserID != userID {
-		return fmt.Errorf("conversation not found")
+		return fmt.Errorf("%s: %w", id, chat.ErrConversationNotFound)
 	}
 	delete(s.conversations, id)
 	delete(s.messages, id)

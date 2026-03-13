@@ -2,7 +2,16 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"time"
+
+	"github.com/benaskins/axon"
+)
+
+var (
+	ErrAgentNotFound        = axon.ErrNotFound
+	ErrConversationNotFound = errors.New("conversation not found")
+	ErrUserNotFound         = errors.New("user not found")
 )
 
 // Store combines ReadStore and ReadModelWriter. Composition roots provide a

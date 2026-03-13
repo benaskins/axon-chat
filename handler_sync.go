@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -48,7 +49,12 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if req.AgentSlug != "" && h.chat.store != nil {
 		userID := axon.UserID(r.Context())
 		if _, err := h.chat.store.GetAgentByUser(r.Context(), userID, req.AgentSlug); err != nil {
-			axon.WriteError(w, http.StatusNotFound, "agent not found")
+			if errors.Is(err, ErrAgentNotFound) {
+				axon.WriteError(w, http.StatusNotFound, "agent not found")
+			} else {
+				slog.Error("failed to verify agent", "slug", req.AgentSlug, "error", err)
+				axon.WriteError(w, http.StatusInternalServerError, "failed to verify agent")
+			}
 			return
 		}
 	}

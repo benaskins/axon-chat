@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -50,7 +51,12 @@ func (h *conversationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	// Verify agent exists
 	_, err := h.store.GetAgentByUser(ctx, userID, slug)
 	if err != nil {
-		axon.WriteError(w, http.StatusNotFound, "agent not found")
+		if errors.Is(err, ErrAgentNotFound) {
+			axon.WriteError(w, http.StatusNotFound, "agent not found")
+		} else {
+			slog.Error("failed to verify agent", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to verify agent")
+		}
 		return
 	}
 
@@ -87,7 +93,12 @@ func (h *conversationGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	conv, err := h.store.GetConversationByUser(ctx, userID, id)
 	if err != nil {
-		axon.WriteError(w, http.StatusNotFound, "conversation not found")
+		if errors.Is(err, ErrConversationNotFound) {
+			axon.WriteError(w, http.StatusNotFound, "conversation not found")
+		} else {
+			slog.Error("failed to get conversation", "id", id, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to get conversation")
+		}
 		return
 	}
 
@@ -122,7 +133,12 @@ func (h *conversationDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	id := r.PathValue("id")
 
 	if _, err := h.store.GetConversationByUser(ctx, userID, id); err != nil {
-		axon.WriteError(w, http.StatusNotFound, "conversation not found")
+		if errors.Is(err, ErrConversationNotFound) {
+			axon.WriteError(w, http.StatusNotFound, "conversation not found")
+		} else {
+			slog.Error("failed to get conversation", "id", id, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to get conversation")
+		}
 		return
 	}
 
