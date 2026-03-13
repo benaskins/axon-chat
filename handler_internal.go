@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/benaskins/axon"
@@ -49,7 +50,11 @@ func (h *internalAgentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	agent, err := h.store.GetAgentBySlug(r.Context(), slug)
 	if err != nil {
-		axon.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "agent not found"})
+		if errors.Is(err, ErrAgentNotFound) {
+			axon.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "agent not found"})
+		} else {
+			axon.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get agent"})
+		}
 		return
 	}
 

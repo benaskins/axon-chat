@@ -73,7 +73,7 @@ func (s *memoryStore) GetAgentByUser(_ context.Context, userID, slug string) (*A
 	defer s.mu.RUnlock()
 	a, ok := s.agents[memAgentKey(userID, slug)]
 	if !ok {
-		return nil, fmt.Errorf("agent not found")
+		return nil, fmt.Errorf("%s: %w", slug, ErrAgentNotFound)
 	}
 	cp := a
 	return &cp, nil
@@ -88,7 +88,7 @@ func (s *memoryStore) GetAgentBySlug(_ context.Context, slug string) (*Agent, er
 			return &cp, nil
 		}
 	}
-	return nil, fmt.Errorf("agent not found")
+	return nil, fmt.Errorf("%s: %w", slug, ErrAgentNotFound)
 }
 
 func (s *memoryStore) SaveAgent(_ context.Context, agent Agent) error {
@@ -128,7 +128,7 @@ func (s *memoryStore) GetConversationByUser(_ context.Context, userID string, id
 	defer s.mu.RUnlock()
 	c, ok := s.conversations[id]
 	if !ok || c.UserID != userID {
-		return nil, fmt.Errorf("conversation not found: %s", id)
+		return nil, fmt.Errorf("%s: %w", id, ErrConversationNotFound)
 	}
 	return &c, nil
 }
@@ -154,7 +154,7 @@ func (s *memoryStore) UpdateConversationTitle(_ context.Context, userID string, 
 	defer s.mu.Unlock()
 	c, ok := s.conversations[id]
 	if !ok || c.UserID != userID {
-		return fmt.Errorf("conversation not found")
+		return fmt.Errorf("%s: %w", id, ErrConversationNotFound)
 	}
 	c.Title = &title
 	c.UpdatedAt = time.Now()

@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -91,7 +92,12 @@ func (h *agentDetailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	agent, err := h.store.GetAgentByUser(ctx, userID, slug)
 	if err != nil {
-		axon.WriteError(w, http.StatusNotFound, "agent not found")
+		if errors.Is(err, ErrAgentNotFound) {
+			axon.WriteError(w, http.StatusNotFound, "agent not found")
+		} else {
+			slog.Error("failed to get agent", "slug", slug, "error", err)
+			axon.WriteError(w, http.StatusInternalServerError, "failed to get agent")
+		}
 		return
 	}
 
