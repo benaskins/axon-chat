@@ -9,6 +9,132 @@ import (
 	tool "github.com/benaskins/axon-tool"
 )
 
+// toolBuildParams holds the per-request state needed to construct tool definitions.
+type toolBuildParams struct {
+	sendEvent      func(sseEvent)
+	r              *http.Request
+	agentSlug      string
+	conversationID string
+	systemPrompt   string
+}
+
+// registeredTool is a single entry in the tool registry, combining frontend
+// metadata with the builder functions used by buildTool and BuildToolsForAgent.
+type registeredTool struct {
+	info     ToolInfo
+	build    func(h *chatHandler, p toolBuildParams) tool.ToolDef
+	agentDef *tool.ToolDef // lightweight schema-only def for BuildToolsForAgent; nil if not available to agents
+}
+
+// toolRegistry is the single source of truth for all built-in tools.
+// Adding a tool here automatically makes it visible to AvailableTools,
+// buildTool, and BuildToolsForAgent — no second switch statement to maintain.
+var toolRegistry = []registeredTool{
+	{
+		info: ToolInfo{ID: "web_search", Label: "Web Search", Description: "search the web for current information"},
+		build: func(h *chatHandler, p toolBuildParams) tool.ToolDef {
+			return h.webSearchTool(p.r, p.systemPrompt)
+		},
+		agentDef: &tool.ToolDef{
+			Name:        "web_search",
+			Description: "Search the web for current information.",
+			Parameters: tool.ParameterSchema{
+				Type:     "object",
+				Required: []string{"query"},
+				Properties: map[string]tool.PropertySchema{
+					"query": {Type: "string", Description: "The search query."},
+				},
+			},
+		},
+	},
+	{
+		info: ToolInfo{ID: "fetch_page", Label: "Fetch Page", Description: "read web pages and extract relevant content"},
+		build: func(h *chatHandler, p toolBuildParams) tool.ToolDef {
+			return h.fetchPageTool(p.r)
+		},
+		agentDef: &tool.ToolDef{
+			Name:        "fetch_page",
+			Description: "Fetch a web page and extract relevant content.",
+			Parameters: tool.ParameterSchema{
+				Type:     "object",
+				Required: []string{"url", "question"},
+				Properties: map[string]tool.PropertySchema{
+					"url":      {Type: "string", Description: "The URL to fetch."},
+					"question": {Type: "string", Description: "What to look for."},
+				},
+			},
+		},
+	},
+	{
+		info: ToolInfo{ID: "use_claude", Label: "Use Claude", Description: "request code changes to itself"},
+		build: func(h *chatHandler, p toolBuildParams) tool.ToolDef {
+			return h.useClaudeTool(p.sendEvent, p.r, p.agentSlug, p.conversationID)
+		},
+		agentDef: &tool.ToolDef{
+			Name:        "use_claude",
+			Description: "Request a code change.",
+			Parameters: tool.ParameterSchema{
+				Type:     "object",
+				Required: []string{"description"},
+				Properties: map[string]tool.PropertySchema{
+					"description": {Type: "string", Description: "Description of the change."},
+				},
+			},
+		},
+	},
+	{
+		info: ToolInfo{ID: "current_time", Label: "Current Time", Description: "tell the current date and time"},
+		build: func(_ *chatHandler, _ toolBuildParams) tool.ToolDef {
+			return tool.CurrentTimeTool()
+		},
+		agentDef: func() *tool.ToolDef { d := tool.CurrentTimeTool(); return &d }(),
+	},
+	{
+		info: ToolInfo{ID: "check_weather", Label: "Check Weather", Description: "check current weather conditions for a location"},
+		build: func(h *chatHandler, p toolBuildParams) tool.ToolDef {
+			return h.checkWeatherTool(p.r)
+		},
+		agentDef: &tool.ToolDef{
+			Name:        "check_weather",
+			Description: "Check the current weather.",
+			Parameters: tool.ParameterSchema{
+				Type:     "object",
+				Required: []string{"location"},
+				Properties: map[string]tool.PropertySchema{
+					"location": {Type: "string", Description: "The location."},
+				},
+			},
+		},
+	},
+	{
+		info: ToolInfo{ID: "recall_memory", Label: "Recall Memory", Description: "search past conversations and memories"},
+		build: func(h *chatHandler, p toolBuildParams) tool.ToolDef {
+			return h.recallMemoryTool()
+		},
+		agentDef: &tool.ToolDef{
+			Name:        "recall_memory",
+			Description: "Search past conversations and memories.",
+			Parameters: tool.ParameterSchema{
+				Type:     "object",
+				Required: []string{"query"},
+				Properties: map[string]tool.PropertySchema{
+					"query": {Type: "string", Description: "What to search memory for."},
+				},
+			},
+		},
+	},
+}
+
+// toolRegistryMap is a lookup index built from toolRegistry at init time.
+var toolRegistryMap map[string]*registeredTool
+
+func init() {
+	toolRegistryMap = make(map[string]*registeredTool, len(toolRegistry))
+	for i := range toolRegistry {
+		toolRegistryMap[toolRegistry[i].info.ID] = &toolRegistry[i]
+	}
+}
+
 // buildToolMap builds a map of tool.ToolDef for the given tool names.
 // Per-request state (sendEvent, imageRefs) is closed over by chat-specific tools.
 func (h *chatHandler) buildToolMap(toolNames []string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) map[string]tool.ToolDef {
@@ -22,25 +148,19 @@ func (h *chatHandler) buildToolMap(toolNames []string, sendEvent func(sseEvent),
 }
 
 func (h *chatHandler) buildTool(name string, sendEvent func(sseEvent), r *http.Request, agentSlug string, conversationID string, systemPrompt string) (tool.ToolDef, bool) {
-	switch name {
-	case "current_time":
-		return tool.CurrentTimeTool(), true
-	case "web_search":
-		return h.webSearchTool(r, systemPrompt), true
-	case "fetch_page":
-		return h.fetchPageTool(r), true
-	case "check_weather":
-		return h.checkWeatherTool(r), true
-	case "use_claude":
-		return h.useClaudeTool(sendEvent, r, agentSlug, conversationID), true
-	case "recall_memory":
-		return h.recallMemoryTool(), true
-	default:
-		if def, ok := h.extraTools[name]; ok {
-			return def, true
-		}
-		return tool.ToolDef{}, false
+	if entry, ok := toolRegistryMap[name]; ok {
+		return entry.build(h, toolBuildParams{
+			sendEvent:      sendEvent,
+			r:              r,
+			agentSlug:      agentSlug,
+			conversationID: conversationID,
+			systemPrompt:   systemPrompt,
+		}), true
 	}
+	if def, ok := h.extraTools[name]; ok {
+		return def, true
+	}
+	return tool.ToolDef{}, false
 }
 
 func (h *chatHandler) webSearchTool(r *http.Request, systemPrompt string) tool.ToolDef {
@@ -269,84 +389,23 @@ type ToolInfo struct {
 	Description string `json:"description"`
 }
 
-// AvailableTools is the single source of truth for all tools.
-var AvailableTools = []ToolInfo{
-	{ID: "web_search", Label: "Web Search", Description: "search the web for current information"},
-	{ID: "fetch_page", Label: "Fetch Page", Description: "read web pages and extract relevant content"},
-	{ID: "use_claude", Label: "Use Claude", Description: "request code changes to itself"},
-	{ID: "current_time", Label: "Current Time", Description: "tell the current date and time"},
-	{ID: "check_weather", Label: "Check Weather", Description: "check current weather conditions for a location"},
-	{ID: "recall_memory", Label: "Recall Memory", Description: "search past conversations and memories"},
-}
+// AvailableTools returns the list of all registered tools for the frontend.
+// Derived from toolRegistry — no separate list to keep in sync.
+var AvailableTools = func() []ToolInfo {
+	infos := make([]ToolInfo, len(toolRegistry))
+	for i, entry := range toolRegistry {
+		infos[i] = entry.info
+	}
+	return infos
+}()
 
 // BuildToolsForAgent returns the tool definitions for an agent's enabled tools.
+// Derived from toolRegistry — no separate switch statement to keep in sync.
 func BuildToolsForAgent(a Agent) []tool.ToolDef {
 	var defs []tool.ToolDef
 	for _, name := range a.Tools {
-		switch name {
-		case "current_time":
-			defs = append(defs, tool.CurrentTimeTool())
-		case "web_search":
-			defs = append(defs, tool.ToolDef{
-				Name:        "web_search",
-				Description: "Search the web for current information.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"query"},
-					Properties: map[string]tool.PropertySchema{
-						"query": {Type: "string", Description: "The search query."},
-					},
-				},
-			})
-		case "fetch_page":
-			defs = append(defs, tool.ToolDef{
-				Name:        "fetch_page",
-				Description: "Fetch a web page and extract relevant content.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"url", "question"},
-					Properties: map[string]tool.PropertySchema{
-						"url":      {Type: "string", Description: "The URL to fetch."},
-						"question": {Type: "string", Description: "What to look for."},
-					},
-				},
-			})
-		case "use_claude":
-			defs = append(defs, tool.ToolDef{
-				Name:        "use_claude",
-				Description: "Request a code change.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"description"},
-					Properties: map[string]tool.PropertySchema{
-						"description": {Type: "string", Description: "Description of the change."},
-					},
-				},
-			})
-		case "check_weather":
-			defs = append(defs, tool.ToolDef{
-				Name:        "check_weather",
-				Description: "Check the current weather.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"location"},
-					Properties: map[string]tool.PropertySchema{
-						"location": {Type: "string", Description: "The location."},
-					},
-				},
-			})
-		case "recall_memory":
-			defs = append(defs, tool.ToolDef{
-				Name:        "recall_memory",
-				Description: "Search past conversations and memories.",
-				Parameters: tool.ParameterSchema{
-					Type:     "object",
-					Required: []string{"query"},
-					Properties: map[string]tool.PropertySchema{
-						"query": {Type: "string", Description: "What to search memory for."},
-					},
-				},
-			})
+		if entry, ok := toolRegistryMap[name]; ok && entry.agentDef != nil {
+			defs = append(defs, *entry.agentDef)
 		}
 	}
 	return defs
