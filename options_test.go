@@ -46,18 +46,18 @@ func TestNewServer_WithDefaultModel(t *testing.T) {
 }
 
 func TestNewServer_WithCookieDomain(t *testing.T) {
-	srv := NewServer(&mockLLMClient{}, WithCookieDomain("studio.internal"))
+	srv := NewServer(&mockLLMClient{}, WithCookieDomain("example.com"))
 
-	if srv.config.CookieDomain != "studio.internal" {
-		t.Errorf("CookieDomain = %q, want studio.internal", srv.config.CookieDomain)
+	if srv.config.CookieDomain != "example.com" {
+		t.Errorf("CookieDomain = %q, want example.com", srv.config.CookieDomain)
 	}
 }
 
 func TestNewServer_WithAuthLoginURL(t *testing.T) {
-	srv := NewServer(&mockLLMClient{}, WithAuthLoginURL("https://auth.studio.internal/login"))
+	srv := NewServer(&mockLLMClient{}, WithAuthLoginURL("https://auth.example.com/login"))
 
-	if srv.config.AuthLoginURL != "https://auth.studio.internal/login" {
-		t.Errorf("AuthLoginURL = %q, want https://auth.studio.internal/login", srv.config.AuthLoginURL)
+	if srv.config.AuthLoginURL != "https://auth.example.com/login" {
+		t.Errorf("AuthLoginURL = %q, want https://auth.example.com/login", srv.config.AuthLoginURL)
 	}
 }
 
@@ -243,7 +243,7 @@ func (m *mockModelLister) ListModels(ctx context.Context) ([]string, error) {
 func TestWithAuthConfig_InjectsScript(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
-		WithAuthLoginURL("https://auth.studio.internal/login"),
+		WithAuthLoginURL("https://auth.example.com/login"),
 	)
 	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
 
@@ -252,7 +252,7 @@ func TestWithAuthConfig_InjectsScript(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.studio.internal/login"`) {
+	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.example.com/login"`) {
 		t.Errorf("index.html missing __AUTH_URL__ injection, got:\n%s", body[:min(200, len(body))])
 	}
 }
@@ -260,7 +260,7 @@ func TestWithAuthConfig_InjectsScript(t *testing.T) {
 func TestWithAuthConfig_StaticAssetsNotInjected(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
-		WithAuthLoginURL("https://auth.studio.internal/login"),
+		WithAuthLoginURL("https://auth.example.com/login"),
 	)
 	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
 
@@ -277,7 +277,7 @@ func TestWithAuthConfig_StaticAssetsNotInjected(t *testing.T) {
 func TestWithAuthConfig_SPAFallbackInjected(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
-		WithAuthLoginURL("https://auth.studio.internal/login"),
+		WithAuthLoginURL("https://auth.example.com/login"),
 	)
 	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
 
@@ -286,7 +286,7 @@ func TestWithAuthConfig_SPAFallbackInjected(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.studio.internal/login"`) {
+	if !strings.Contains(body, `window.__AUTH_URL__="https://auth.example.com/login"`) {
 		t.Errorf("/login should get injected index.html, got:\n%s", body[:min(200, len(body))])
 	}
 }
