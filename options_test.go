@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"embed"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -240,12 +239,12 @@ func (m *mockModelLister) ListModels(ctx context.Context) ([]string, error) {
 	return []string{"test-model"}, nil
 }
 
-func TestWithAuthConfig_InjectsScript(t *testing.T) {
+func TestSPAHandler_InjectsScript(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
 		WithAuthLoginURL("https://auth.example.com/login"),
 	)
-	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+	handler := srv.SPAHandler()
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
@@ -257,12 +256,12 @@ func TestWithAuthConfig_InjectsScript(t *testing.T) {
 	}
 }
 
-func TestWithAuthConfig_StaticAssetsNotInjected(t *testing.T) {
+func TestSPAHandler_StaticAssetsNotInjected(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
 		WithAuthLoginURL("https://auth.example.com/login"),
 	)
-	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+	handler := srv.SPAHandler()
 
 	req := httptest.NewRequest("GET", "/_app/version.json", nil)
 	rec := httptest.NewRecorder()
@@ -274,12 +273,12 @@ func TestWithAuthConfig_StaticAssetsNotInjected(t *testing.T) {
 	}
 }
 
-func TestWithAuthConfig_SPAFallbackInjected(t *testing.T) {
+func TestSPAHandler_FallbackInjected(t *testing.T) {
 	srv := NewServer(&mockLLMClient{},
 		WithStaticFiles(&StaticFiles),
 		WithAuthLoginURL("https://auth.example.com/login"),
 	)
-	handler := srv.Handler(func(next http.Handler) http.Handler { return next })
+	handler := srv.SPAHandler()
 
 	req := httptest.NewRequest("GET", "/login", nil)
 	rec := httptest.NewRecorder()

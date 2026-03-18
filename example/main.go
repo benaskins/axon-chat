@@ -42,9 +42,10 @@ func main() {
 		chat.WithShutdownContext(ctx),
 	)
 
-	noAuth := func(h http.Handler) http.Handler { return h }
-	handler := srv.Handler(noAuth)
+	mux := http.NewServeMux()
+	mux.Handle("/api/", srv.Handler())
+	mux.Handle("/", srv.SPAHandler())
 
 	slog.Info("listening", "addr", ":8090")
-	http.ListenAndServe(":8090", handler)
+	http.ListenAndServe(":8090", mux)
 }

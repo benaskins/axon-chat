@@ -75,42 +75,24 @@ func NewServer(llm loop.LLMClient, opts ...Option) *Server {
 	return srv
 }
 
-// Handler returns an http.Handler with all chat routes except /health and /metrics.
+// Handler returns an http.Handler with all API routes.
+// Auth is not applied here — the composition root wraps with auth middleware.
 // Call this after setting optional dependencies.
-func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Handler {
-	// Wire optional dependencies into the chat handler
-	s.chat.searcher = s.Searcher
-	s.chat.toolRouter = s.ToolRouter
-	s.chat.taskRunner = s.TaskRunner
-	s.chat.weather = s.Weather
-	s.chat.pageFetcher = s.PageFetcher
-	s.chat.searchQualifier = s.SearchQualifier
-	s.chat.memoryRecaller = s.MemoryRecaller
-	if s.MemoryExtractor != nil {
-		s.chat.idleExtractor = NewIdleExtractor(s.chat.shutdownCtx, s.MemoryExtractor, 1*time.Hour)
-	}
-	s.chat.extraTools = s.ExtraTools
-	if s.Analytics != nil {
-		s.chat.analytics = s.Analytics
-	} else {
-		s.chat.analytics = NoopAnalytics{}
-	}
+func (s *Server) Handler() http.Handler {
+	s.wireDependencies()
 
 	mux := http.NewServeMux()
 
-	auth := authMiddleware
-
 	// Auth check endpoint (returns current user info)
-	mux.Handle("GET /api/me", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /api/me", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		axon.WriteJSON(w, http.StatusOK, map[string]string{"user_id": axon.UserID(r.Context()), "username": axon.Username(r.Context())})
-	})))
+	}))
 
-	// Protected API routes — models endpoint requires ModelLister support
-	var modelsRoute http.Handler
+	// Models endpoint
 	if s.ModelLister != nil {
-		modelsRoute = auth(&modelsHandler{lister: s.ModelLister})
+		mux.Handle("/api/models", &modelsHandler{lister: s.ModelLister})
 	} else {
-		modelsRoute = auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("/api/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			axon.WriteError(w, http.StatusNotImplemented, "model listing not supported")
 		}))
 	}
@@ -125,22 +107,21 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 	convoGet := &conversationGetHandler{store: s.chat.store}
 	convoDelete := &conversationDeleteHandler{store: s.chat.store, eventStore: s.chat.eventStore}
 
-	mux.Handle("/api/chat/sync", auth(&syncChatHandler{chat: s.chat}))
-	mux.Handle("/api/chat", auth(s.chat))
-	mux.Handle("/api/models", modelsRoute)
-	mux.Handle("GET /api/agents/{slug}", auth(agentDetail))
-	mux.Handle("PUT /api/agents/{slug}", auth(agentSave))
-	mux.Handle("DELETE /api/agents/{slug}", auth(agentDelete))
-	mux.Handle("GET /api/agents/{slug}/conversations", auth(convoList))
-	mux.Handle("POST /api/agents/{slug}/conversations", auth(convoCreate))
-	mux.Handle("GET /api/conversations/{id}", auth(convoGet))
-	mux.Handle("DELETE /api/conversations/{id}", auth(convoDelete))
-	mux.Handle("GET /api/agents", auth(agentsList))
-	mux.Handle("GET /api/events", auth(&eventsHandler{bus: s.chat.eventBus}))
+	mux.Handle("/api/chat/sync", &syncChatHandler{chat: s.chat})
+	mux.Handle("/api/chat", s.chat)
+	mux.Handle("GET /api/agents/{slug}", agentDetail)
+	mux.Handle("PUT /api/agents/{slug}", agentSave)
+	mux.Handle("DELETE /api/agents/{slug}", agentDelete)
+	mux.Handle("GET /api/agents/{slug}/conversations", convoList)
+	mux.Handle("POST /api/agents/{slug}/conversations", convoCreate)
+	mux.Handle("GET /api/conversations/{id}", convoGet)
+	mux.Handle("DELETE /api/conversations/{id}", convoDelete)
+	mux.Handle("GET /api/agents", agentsList)
+	mux.Handle("GET /api/events", &eventsHandler{bus: s.chat.eventBus})
 
 	// Task list proxy (forwards to task runner)
 	taskRunner := s.TaskRunner
-	mux.Handle("GET /api/tasks", auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /api/tasks", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if taskRunner == nil {
 			axon.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "task runner not available"})
 			return
@@ -157,9 +138,9 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 			return
 		}
 		axon.WriteJSON(w, http.StatusOK, tasks)
-	})))
+	}))
 
-	// Logout — clears session cookie and redirects to login
+	// Logout — clears session cookie
 	mux.HandleFunc("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session",
@@ -173,17 +154,41 @@ func (s *Server) Handler(authMiddleware func(http.Handler) http.Handler) http.Ha
 		axon.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 	})
 
-	// SPA fallback for Svelte frontend
-	if s.staticFiles != nil {
-		spa := axon.SPAHandler(*s.staticFiles, "static", axon.WithStaticPrefix("/_app/"))
-		if s.config.AuthLoginURL != "" {
-			spa = withAuthConfig(spa, *s.staticFiles, s.config.AuthLoginURL)
-		}
-		mux.Handle("/", spa)
-	}
-
 	s.mux = mux
 	return mux
+}
+
+// SPAHandler returns an http.Handler that serves the embedded SvelteKit
+// frontend with client-side routing fallback. Mount without auth.
+func (s *Server) SPAHandler() http.Handler {
+	if s.staticFiles == nil {
+		return http.NotFoundHandler()
+	}
+	spa := axon.SPAHandler(*s.staticFiles, "static", axon.WithStaticPrefix("/_app/"))
+	if s.config.AuthLoginURL != "" {
+		spa = withAuthConfig(spa, *s.staticFiles, s.config.AuthLoginURL)
+	}
+	return spa
+}
+
+// wireDependencies connects optional dependencies to the chat handler.
+func (s *Server) wireDependencies() {
+	s.chat.searcher = s.Searcher
+	s.chat.toolRouter = s.ToolRouter
+	s.chat.taskRunner = s.TaskRunner
+	s.chat.weather = s.Weather
+	s.chat.pageFetcher = s.PageFetcher
+	s.chat.searchQualifier = s.SearchQualifier
+	s.chat.memoryRecaller = s.MemoryRecaller
+	if s.MemoryExtractor != nil {
+		s.chat.idleExtractor = NewIdleExtractor(s.chat.shutdownCtx, s.MemoryExtractor, 1*time.Hour)
+	}
+	s.chat.extraTools = s.ExtraTools
+	if s.Analytics != nil {
+		s.chat.analytics = s.Analytics
+	} else {
+		s.chat.analytics = NoopAnalytics{}
+	}
 }
 
 // UserCreatedHandler returns an http.Handler for the user-created webhook.
