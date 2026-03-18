@@ -11,6 +11,9 @@ import (
 	"github.com/benaskins/axon"
 	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // SyncChatResponse is the JSON response from the synchronous chat endpoint.
@@ -140,7 +143,9 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	_, err := loop.Run(r.Context(), h.chat.llm, agentReq, tools, toolCtx, cb)
 	if err != nil {
-		chatRequestsTotal.WithLabelValues(model, "error").Inc()
+		chatLLMCallsTotal.Add(r.Context(), 1, metric.WithAttributes(
+			attribute.String("model", model), attribute.String("status", "error"),
+		))
 		slog.Error("sync chat agent error", "error", err, "model", model)
 		axon.WriteError(w, http.StatusInternalServerError, "chat request failed")
 		return
@@ -148,9 +153,13 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Metrics
 	duration := time.Since(start).Seconds()
-	chatDuration.WithLabelValues(model).Observe(duration)
-	chatRequestsTotal.WithLabelValues(model, "ok").Inc()
-	chatTokensTotal.WithLabelValues(model).Add(float64(content.Len()))
+	ctx := r.Context()
+	modelAttr := metric.WithAttributes(attribute.String("model", model))
+	chatLLMCallDuration.Record(ctx, duration, modelAttr)
+	chatLLMCallsTotal.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("model", model), attribute.String("status", "ok"),
+	))
+	chatLLMTokensTotal.Add(ctx, float64(content.Len()), modelAttr)
 
 	durationMs := time.Since(start).Milliseconds()
 
