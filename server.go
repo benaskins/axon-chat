@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/benaskins/axon"
@@ -229,7 +230,8 @@ func withAuthConfig(next http.Handler, files embed.FS, authLoginURL string) http
 		return next
 	}
 
-	configScript := []byte(`<script>window.__AUTH_URL__="` + authLoginURL + `";</script>`)
+	escaped := strconv.Quote(authLoginURL)
+	configScript := []byte(`<script>window.__AUTH_URL__=` + escaped + `;</script>`)
 	injected := bytes.Replace(original, []byte("<head>"), append([]byte("<head>"), configScript...), 1)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
