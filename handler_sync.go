@@ -141,7 +141,13 @@ func (h *syncChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OnDone: func(durationMs int64) {},
 	}
 
-	_, err := loop.Run(r.Context(), h.chat.llm, agentReq, tools, toolCtx, cb)
+	_, err := loop.Run(r.Context(), loop.RunConfig{
+		Client:    h.chat.llm,
+		Request:   agentReq,
+		Tools:     tools,
+		ToolCtx:   toolCtx,
+		Callbacks: cb,
+	})
 	if err != nil {
 		chatLLMCallsTotal.Add(r.Context(), 1, metric.WithAttributes(
 			attribute.String("model", model), attribute.String("status", "error"),

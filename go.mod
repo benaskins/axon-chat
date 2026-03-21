@@ -4,8 +4,8 @@ go 1.26.1
 
 require (
 	github.com/benaskins/axon v0.5.0
-	github.com/benaskins/axon-loop v0.3.0
-	github.com/benaskins/axon-tool v0.1.0
+	github.com/benaskins/axon-loop v0.6.0
+	github.com/benaskins/axon-tool v0.1.6
 )
 
 require (
@@ -19,6 +19,7 @@ require (
 require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
+	github.com/benaskins/axon-talk v0.4.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

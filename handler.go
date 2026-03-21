@@ -263,7 +263,13 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 	}
 
 	// Run the conversation loop
-	result, err := loop.Run(r.Context(), h.llm, agentReq, tools, toolCtx, cb)
+	result, err := loop.Run(r.Context(), loop.RunConfig{
+		Client:    h.llm,
+		Request:   agentReq,
+		Tools:     tools,
+		ToolCtx:   toolCtx,
+		Callbacks: cb,
+	})
 	if err != nil {
 		chatLLMCallsTotal.Add(r.Context(), 1, metric.WithAttributes(
 			attribute.String("model", model), attribute.String("status", "error"),
