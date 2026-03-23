@@ -10,7 +10,7 @@ Chat service with LLM-powered agents, SSE streaming, and tool calling. Provides 
 go get github.com/benaskins/axon-chat@latest
 ```
 
-Requires Go 1.26+.
+Requires Go 1.26.1+.
 
 axon-chat is a domain package — it provides handlers and types but no `main`. You assemble it in your own composition root alongside an LLM client, store, and auth middleware:
 
