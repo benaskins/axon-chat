@@ -10,7 +10,7 @@ Chat service with LLM-powered agents, SSE streaming, and tool calling. Provides 
 go get github.com/benaskins/axon-chat@latest
 ```
 
-Requires Go 1.25+.
+Requires Go 1.26+.
 
 axon-chat is a domain package — it provides handlers and types but no `main`. You assemble it in your own composition root alongside an LLM client, store, and auth middleware:
 
@@ -23,7 +23,7 @@ srv := chat.NewServer(llm,
     chat.WithShutdownContext(ctx),
 )
 
-handler := srv.Handler(authMiddleware)
+handler := srv.Handler()
 ```
 
 See [`example/main.go`](example/main.go) for a minimal wiring example, or the full composition root in [`examples/chat/`](https://github.com/benaskins/lamina-mono/tree/main/examples/chat) in the lamina workspace.
