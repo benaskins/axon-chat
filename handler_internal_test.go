@@ -17,10 +17,11 @@ func TestInternalMessagesHandler(t *testing.T) {
 	store.AppendMessage(ctx, convo.ID, Message{Role: "user", Content: "hello"})
 	store.AppendMessage(ctx, convo.ID, Message{Role: "assistant", Content: "hi"})
 
-	handler := &internalMessagesHandler{store: store}
+	handler := &internalMessagesHandler{store: store, internalKey: "test-key"}
 
 	req := httptest.NewRequest(http.MethodGet, "/internal/conversations/"+convo.ID+"/messages", nil)
 	req.SetPathValue("id", convo.ID)
+	req.Header.Set("X-Internal-API-Key", "test-key")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -39,10 +40,11 @@ func TestInternalMessagesHandler(t *testing.T) {
 
 func TestInternalMessagesHandler_EmptyConversation(t *testing.T) {
 	store := newMemoryStore()
-	handler := &internalMessagesHandler{store: store}
+	handler := &internalMessagesHandler{store: store, internalKey: "test-key"}
 
 	req := httptest.NewRequest(http.MethodGet, "/internal/conversations/nonexistent/messages", nil)
 	req.SetPathValue("id", "nonexistent")
+	req.Header.Set("X-Internal-API-Key", "test-key")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -66,10 +68,11 @@ func TestInternalAgentHandler(t *testing.T) {
 		SystemPrompt: "You are a helpful bot.",
 	})
 
-	handler := &internalAgentHandler{store: store}
+	handler := &internalAgentHandler{store: store, internalKey: "test-key"}
 
 	req := httptest.NewRequest(http.MethodGet, "/internal/agents/bot", nil)
 	req.SetPathValue("slug", "bot")
+	req.Header.Set("X-Internal-API-Key", "test-key")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -89,12 +92,50 @@ func TestInternalAgentHandler(t *testing.T) {
 	}
 }
 
+func TestInternalMessagesHandler_Unauthorized(t *testing.T) {
+	store := newMemoryStore()
+	handler := &internalMessagesHandler{store: store, internalKey: "test-key"}
+
+	// No key
+	req := httptest.NewRequest(http.MethodGet, "/internal/conversations/c1/messages", nil)
+	req.SetPathValue("id", "c1")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("no key: expected 401, got %d", w.Code)
+	}
+
+	// Wrong key
+	req = httptest.NewRequest(http.MethodGet, "/internal/conversations/c1/messages", nil)
+	req.SetPathValue("id", "c1")
+	req.Header.Set("X-Internal-API-Key", "wrong-key")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("wrong key: expected 401, got %d", w.Code)
+	}
+}
+
+func TestInternalAgentHandler_Unauthorized(t *testing.T) {
+	store := newMemoryStore()
+	handler := &internalAgentHandler{store: store, internalKey: "test-key"}
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/agents/bot", nil)
+	req.SetPathValue("slug", "bot")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("no key: expected 401, got %d", w.Code)
+	}
+}
+
 func TestInternalAgentHandler_NotFound(t *testing.T) {
 	store := newMemoryStore()
-	handler := &internalAgentHandler{store: store}
+	handler := &internalAgentHandler{store: store, internalKey: "test-key"}
 
 	req := httptest.NewRequest(http.MethodGet, "/internal/agents/missing", nil)
 	req.SetPathValue("slug", "missing")
+	req.Header.Set("X-Internal-API-Key", "test-key")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

@@ -198,15 +198,15 @@ func (s *Server) UserCreatedHandler() http.Handler {
 }
 
 // InternalMessagesHandler returns an http.Handler for fetching conversation messages
-// without auth, for internal service-to-service calls.
+// with internal API key auth, for service-to-service calls.
 func (s *Server) InternalMessagesHandler() http.Handler {
-	return &internalMessagesHandler{store: s.chat.store}
+	return &internalMessagesHandler{store: s.chat.store, internalKey: s.config.InternalAPIKey}
 }
 
 // InternalAgentHandler returns an http.Handler for fetching agent info by slug
-// without auth, for internal service-to-service calls.
+// with internal API key auth, for service-to-service calls.
 func (s *Server) InternalAgentHandler() http.Handler {
-	return &internalAgentHandler{store: s.chat.store}
+	return &internalAgentHandler{store: s.chat.store, internalKey: s.config.InternalAPIKey}
 }
 
 // WaitForBackgroundTasks blocks until all background tasks complete.
