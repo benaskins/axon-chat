@@ -140,6 +140,14 @@ func WithExtraTools(tools map[string]tool.ToolDef) Option {
 	}
 }
 
+// WithInternalAPIKey sets the API key required for internal service-to-service
+// endpoints (InternalMessagesHandler, InternalAgentHandler).
+func WithInternalAPIKey(key string) Option {
+	return func(s *Server) {
+		s.config.InternalAPIKey = key
+	}
+}
+
 // WithEventStore overrides the default in-memory event store.
 // Use this to provide a durable event store (e.g., Postgres-backed).
 // The caller is responsible for registering projectors on the provided store.

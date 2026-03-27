@@ -200,12 +200,18 @@ func (s *Server) UserCreatedHandler() http.Handler {
 // InternalMessagesHandler returns an http.Handler for fetching conversation messages
 // with internal API key auth, for service-to-service calls.
 func (s *Server) InternalMessagesHandler() http.Handler {
+	if s.config.InternalAPIKey == "" {
+		slog.Warn("InternalMessagesHandler mounted without InternalAPIKey — all requests will be rejected")
+	}
 	return &internalMessagesHandler{store: s.chat.store, internalKey: s.config.InternalAPIKey}
 }
 
 // InternalAgentHandler returns an http.Handler for fetching agent info by slug
 // with internal API key auth, for service-to-service calls.
 func (s *Server) InternalAgentHandler() http.Handler {
+	if s.config.InternalAPIKey == "" {
+		slog.Warn("InternalAgentHandler mounted without InternalAPIKey — all requests will be rejected")
+	}
 	return &internalAgentHandler{store: s.chat.store, internalKey: s.config.InternalAPIKey}
 }
 
