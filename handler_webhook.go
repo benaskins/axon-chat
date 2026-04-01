@@ -29,7 +29,7 @@ func (h *userCreatedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := emitEvent(r.Context(), h.eventStore, "user-"+req.UserID, UserCreated{UserID: req.UserID}, nil); err != nil {
+	if err := emitEvent(r.Context(), h.eventStore, "user-"+req.UserID, UserCreated(req), nil); err != nil {
 		slog.Error("failed to create user", "user_id", req.UserID, "error", err)
 		axon.WriteError(w, http.StatusInternalServerError, "failed to create user")
 		return
