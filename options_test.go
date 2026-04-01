@@ -9,7 +9,7 @@ import (
 
 	fact "github.com/benaskins/axon-fact"
 	loop "github.com/benaskins/axon-loop"
-	"github.com/benaskins/axon/sse"
+	"github.com/benaskins/axon-push"
 )
 
 func TestNewServer_DefaultsWithLLMOnly(t *testing.T) {
@@ -70,7 +70,7 @@ func TestNewServer_WithStaticFiles(t *testing.T) {
 }
 
 func TestNewServer_WithEventBus(t *testing.T) {
-	bus := sse.NewEventBus[Event]()
+	bus := push.NewEventBus[Event]()
 	srv := NewServer(&mockLLMClient{}, WithEventBus(bus))
 
 	if srv.chat.eventBus != bus {

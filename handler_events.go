@@ -4,13 +4,13 @@ import (
 	"net/http"
 
 	"github.com/benaskins/axon"
-	"github.com/benaskins/axon/sse"
+	"github.com/benaskins/axon-push"
 
 	"github.com/google/uuid"
 )
 
 type eventsHandler struct {
-	bus *sse.EventBus[Event]
+	bus *push.EventBus[Event]
 }
 
 func (h *eventsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +29,7 @@ func (h *eventsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ch := h.bus.Subscribe(clientID)
 	defer h.bus.Unsubscribe(clientID)
 
-	sse.SetSSEHeaders(w)
+	push.SetSSEHeaders(w)
 	flusher.Flush()
 
 	for {
@@ -38,7 +38,7 @@ func (h *eventsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			sse.SendEvent(w, flusher, ev)
+			push.SendEvent(w, flusher, ev)
 		case <-r.Context().Done():
 			return
 		}

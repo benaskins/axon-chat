@@ -10,6 +10,7 @@ require (
 
 require (
 	github.com/benaskins/axon-fact v0.0.0-20260307073113-4cdb33bb95d8
+	github.com/benaskins/axon-push v0.1.0
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
 	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/otel v1.42.0

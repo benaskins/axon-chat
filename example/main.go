@@ -19,7 +19,7 @@ import (
 
 	chat "github.com/benaskins/axon-chat"
 	"github.com/benaskins/axon-chat/chattest"
-	"github.com/benaskins/axon/sse"
+	"github.com/benaskins/axon-push"
 	loop "github.com/benaskins/axon-loop"
 )
 
@@ -30,7 +30,7 @@ func main() {
 	var llm loop.LLMClient // supply your own implementation
 
 	store := chattest.NewMemoryStore()
-	eventBus := sse.NewEventBus[chat.Event]()
+	eventBus := push.NewEventBus[chat.Event]()
 	staticFiles := &chat.StaticFiles
 
 	srv := chat.NewServer(llm,

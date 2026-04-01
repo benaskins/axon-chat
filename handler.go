@@ -15,7 +15,7 @@ import (
 	fact "github.com/benaskins/axon-fact"
 	loop "github.com/benaskins/axon-loop"
 	tool "github.com/benaskins/axon-tool"
-	"github.com/benaskins/axon/sse"
+	"github.com/benaskins/axon-push"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -76,7 +76,7 @@ type chatHandler struct {
 	eventStore      fact.EventStore
 	shutdownCtx     context.Context
 	bgTasks         *sync.WaitGroup
-	eventBus        *sse.EventBus[Event]
+	eventBus        *push.EventBus[Event]
 	searcher        Searcher
 	toolRouter      *ToolRouter
 	taskRunner      TaskRunner
@@ -90,7 +90,7 @@ type chatHandler struct {
 	pollInterval    time.Duration
 }
 
-func newChatHandler(defaultModel string, llm loop.LLMClient, store Store, shutdownCtx context.Context, eventBus *sse.EventBus[Event]) *chatHandler {
+func newChatHandler(defaultModel string, llm loop.LLMClient, store Store, shutdownCtx context.Context, eventBus *push.EventBus[Event]) *chatHandler {
 	return &chatHandler{
 		defaultModel: defaultModel,
 		llm:          llm,
@@ -185,7 +185,7 @@ func (h *chatHandler) runAgent(w http.ResponseWriter, r *http.Request, model str
 		return
 	}
 
-	sse.SetSSEHeaders(w)
+	push.SetSSEHeaders(w)
 
 	start := time.Now()
 	var tokenCount float64

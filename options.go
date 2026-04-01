@@ -6,7 +6,7 @@ import (
 
 	fact "github.com/benaskins/axon-fact"
 	tool "github.com/benaskins/axon-tool"
-	"github.com/benaskins/axon/sse"
+	"github.com/benaskins/axon-push"
 )
 
 // Option configures a Server during construction.
@@ -50,7 +50,7 @@ func WithStaticFiles(fs *embed.FS) Option {
 }
 
 // WithEventBus sets the SSE event bus for real-time streaming.
-func WithEventBus(bus *sse.EventBus[Event]) Option {
+func WithEventBus(bus *push.EventBus[Event]) Option {
 	return func(s *Server) {
 		s.chat.eventBus = bus
 	}
