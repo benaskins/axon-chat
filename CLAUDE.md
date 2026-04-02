@@ -5,7 +5,7 @@
 - Dual-path persistence: if eventStore is wired, emit events; otherwise direct store writes
 - `ReadStore` for queries, `ReadModelWriter` for projections — never mix read/write paths
 - "Tools" means axon agent tools (tool_router.go, tools.go) — not Claude Code skills
-- SvelteKit frontend lives in `web/`, built output embedded via `//go:embed all:static`
+- React + shadcn/ui + Tailwind + TanStack Query frontend in `web/`, built output embedded via `//go:embed all:static`
 
 ## Constraints
 - Leaf service — no other axon-* module may import axon-chat
