@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router";
 import { checkAuth, redirectToLogin } from "@/lib/api";
+import { MenuProvider } from "@/components/menu-context";
 
 export default function AuthLayout() {
   const [ready, setReady] = useState(false);
@@ -17,5 +18,9 @@ export default function AuthLayout() {
 
   if (!ready) return null;
 
-  return <Outlet />;
+  return (
+    <MenuProvider>
+      <Outlet />
+    </MenuProvider>
+  );
 }
