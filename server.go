@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/benaskins/axon"
@@ -165,7 +166,7 @@ func (s *Server) SPAHandler() http.Handler {
 	if s.staticFiles == nil {
 		return http.NotFoundHandler()
 	}
-	spa := axon.SPAHandler(*s.staticFiles, "static", axon.WithStaticPrefix("/_app/"))
+	spa := axon.SPAHandler(*s.staticFiles, "static", axon.WithStaticPrefix("/assets/"))
 	if s.config.AuthLoginURL != "" {
 		spa = withAuthConfig(spa, *s.staticFiles, s.config.AuthLoginURL)
 	}
@@ -241,12 +242,27 @@ func withAuthConfig(next http.Handler, files embed.FS, authLoginURL string) http
 	injected := bytes.Replace(original, []byte("<head>"), append([]byte("<head>"), configScript...), 1)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Serve static assets directly via the SPA handler
-		if _, err := fs.Stat(staticSub, r.URL.Path[1:]); err == nil && r.URL.Path != "/" {
+		// Serve static assets directly via the SPA handler.
+		// For files that exist on disk, let the SPA handler serve them.
+		// For unknown paths, the SPA handler either 404s (static prefix)
+		// or falls back to index.html. We intercept the fallback case
+		// to inject the auth config.
+		path := r.URL.Path
+		if path == "/" {
+			path = "index.html"
+		} else {
+			path = path[1:]
+		}
+		if _, err := fs.Stat(staticSub, path); err == nil && r.URL.Path != "/" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// All other paths are SPA fallback — serve injected index.html
+		// Static asset prefix: delegate to SPA handler which will 404
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// SPA fallback: serve injected index.html
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(injected)

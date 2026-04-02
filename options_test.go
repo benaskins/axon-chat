@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"embed"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -263,13 +264,12 @@ func TestSPAHandler_StaticAssetsNotInjected(t *testing.T) {
 	)
 	handler := srv.SPAHandler()
 
-	req := httptest.NewRequest("GET", "/_app/version.json", nil)
+	req := httptest.NewRequest("GET", "/assets/nonexistent.js", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	body := rec.Body.String()
-	if strings.Contains(body, "__AUTH_URL__") {
-		t.Error("static asset should not contain injected __AUTH_URL__")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("static asset prefix should 404 for missing file, got %d", rec.Code)
 	}
 }
 
