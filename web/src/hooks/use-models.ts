@@ -10,6 +10,7 @@ export function useModels() {
     queryKey: ["models"],
     queryFn: async () => {
       const resp = await authenticatedFetch("/api/models");
+      if (!resp.ok) return [];
       return resp.json();
     },
     staleTime: 60_000,

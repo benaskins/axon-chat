@@ -109,6 +109,18 @@ func (s *Server) Handler() http.Handler {
 	convoGet := &conversationGetHandler{store: s.chat.store}
 	convoDelete := &conversationDeleteHandler{store: s.chat.store, eventStore: s.chat.eventStore}
 
+	mux.Handle("GET /api/tools", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		type toolDef struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		defs := make([]toolDef, len(AvailableTools))
+		for i, t := range AvailableTools {
+			defs[i] = toolDef{Name: t.ID, Description: t.Description}
+		}
+		axon.WriteJSON(w, http.StatusOK, defs)
+	}))
+
 	mux.Handle("/api/chat/sync", &syncChatHandler{chat: s.chat})
 	mux.Handle("/api/chat", s.chat)
 	mux.Handle("GET /api/agents/{slug}", agentDetail)
