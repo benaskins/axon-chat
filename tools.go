@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	tool "github.com/benaskins/axon-tool"
 )
@@ -85,9 +86,15 @@ var toolRegistry = []registeredTool{
 	{
 		info: ToolInfo{ID: "current_time", Label: "Current Time", Description: "tell the current date and time"},
 		build: func(_ *chatHandler, _ toolBuildParams) tool.ToolDef {
-			return tool.CurrentTimeTool()
+			return tool.ToolDef{
+				Name:        "current_time",
+				Description: "Get the current date and time.",
+				Parameters:  tool.ParameterSchema{Type: "object", Properties: map[string]tool.PropertySchema{}},
+				Execute: func(_ *tool.ToolContext, _ map[string]any) tool.ToolResult {
+					return tool.ToolResult{Content: time.Now().Format(time.RFC3339)}
+				},
+			}
 		},
-		agentDef: func() *tool.ToolDef { d := tool.CurrentTimeTool(); return &d }(),
 	},
 	{
 		info: ToolInfo{ID: "check_weather", Label: "Check Weather", Description: "check current weather conditions for a location"},
