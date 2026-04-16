@@ -130,7 +130,7 @@ func TestNewServer_DefaultsEventStore(t *testing.T) {
 
 	// Verify projectors are wired by emitting an event and checking the read model
 	store.CreateUser(context.Background(), "u1")
-	evt, _ := NewEvent("agent-u1-test", AgentCreated{Agent: Agent{UserID: "u1", Slug: "test", Name: "Test"}})
+	evt, _ := fact.NewEvent("agent-u1-test", AgentCreated{Agent: Agent{UserID: "u1", Slug: "test", Name: "Test"}})
 	srv.chat.eventStore.Append(context.Background(), "agent-u1-test", []fact.Event{evt})
 
 	got, err := store.GetAgentByUser(context.Background(), "u1", "test")
@@ -179,7 +179,7 @@ func TestEventStore_AgentSaveEmitsEvent(t *testing.T) {
 
 	// Emit an agent.created event through the event store
 	agent := Agent{Slug: "writer", UserID: "u1", Name: "Writer"}
-	evt, err := NewEvent("agent-u1-writer", AgentCreated{Agent: agent})
+	evt, err := fact.NewEvent("agent-u1-writer", AgentCreated{Agent: agent})
 	if err != nil {
 		t.Fatalf("NewEvent: %v", err)
 	}
@@ -208,15 +208,15 @@ func TestEventStore_ConversationFlowEmitsEvents(t *testing.T) {
 	es := fact.NewMemoryStore(opts...)
 
 	// Create conversation
-	evt, _ := NewEvent("conversation-c1", ConversationCreated{ID: "c1", AgentSlug: "writer", UserID: "u1"})
+	evt, _ := fact.NewEvent("conversation-c1", ConversationCreated{ID: "c1", AgentSlug: "writer", UserID: "u1"})
 	es.Append(context.Background(), "conversation-c1", []fact.Event{evt})
 
 	// Append message
-	evt, _ = NewEvent("conversation-c1", MessageAppended{ID: "m1", Role: "user", Content: "hello"})
+	evt, _ = fact.NewEvent("conversation-c1", MessageAppended{ID: "m1", Role: "user", Content: "hello"})
 	es.Append(context.Background(), "conversation-c1", []fact.Event{evt})
 
 	// Title
-	evt, _ = NewEventWithMeta("conversation-c1", ConversationTitled{Title: "Greeting"}, map[string]string{"user_id": "u1"})
+	evt, _ = fact.NewEventWithMeta("conversation-c1", ConversationTitled{Title: "Greeting"}, map[string]string{"user_id": "u1"})
 	es.Append(context.Background(), "conversation-c1", []fact.Event{evt})
 
 	// Verify read model

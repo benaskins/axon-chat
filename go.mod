@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/benaskins/axon-fact v0.0.0-20260307073113-4cdb33bb95d8
+	github.com/benaskins/axon-fact v0.12.0
 	github.com/benaskins/axon-push v0.1.0
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
 	github.com/google/uuid v1.6.0
@@ -30,7 +30,7 @@ require (
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.8.0 // indirect
+	github.com/jackc/pgx/v5 v5.9.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/justinas/alice v1.2.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect

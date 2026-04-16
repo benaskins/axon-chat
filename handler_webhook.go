@@ -49,7 +49,7 @@ func (h *userCreatedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func EmitDefaultAgents(ctx context.Context, es fact.EventStore, userID, defaultModel string) error {
 	for _, agent := range defaultAgentSet(userID, defaultModel) {
 		stream := "agent-" + userID + "-" + agent.Slug
-		evt, err := NewEvent(stream, AgentCreated{Agent: agent})
+		evt, err := fact.NewEvent(stream, AgentCreated{Agent: agent})
 		if err != nil {
 			return err
 		}

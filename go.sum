@@ -4,8 +4,8 @@ github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de h1:FxWPpzIjnTlhP
 github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de/go.mod h1:DCaWoUhZrYW9p1lxo/cm8EmUOOzAPSEZNGF2DK1dJgw=
 github.com/benaskins/axon v0.5.0 h1:kUmQFnbhONyeeag+csAcHP0wFm9eOSeJlIu1CuDCLlI=
 github.com/benaskins/axon v0.5.0/go.mod h1:aXOYjKD5wF8xWSuV8jvIVzxw6r9QX6s/Y9thKHhYkNg=
-github.com/benaskins/axon-fact v0.0.0-20260307073113-4cdb33bb95d8 h1:Jgqhuq1eFOm7S2V8VxEMeVWLOAzxfet2lE4JMwuYS7g=
-github.com/benaskins/axon-fact v0.0.0-20260307073113-4cdb33bb95d8/go.mod h1:GZbl9EnhmZ6rtQmSZtF5k51yM/Gb6ONyBskbZG/z9+8=
+github.com/benaskins/axon-fact v0.12.0 h1:Q4bqeWz/QyBRquUoDzCgH4EOiU212I59I9E2L8crj7o=
+github.com/benaskins/axon-fact v0.12.0/go.mod h1:fbrUptVmhYg7if9gG3xVphhT0OsQFIetkdP5ciiuh0s=
 github.com/benaskins/axon-loop v0.7.0 h1:qnuxiRqA/F0ler/YPIfytB4fhLKMVQFT+tVKdjFNT2k=
 github.com/benaskins/axon-loop v0.7.0/go.mod h1:qcCI5hasY+urw91DK59RqzSEo73zi2J/aIr/Daw8fHo=
 github.com/benaskins/axon-push v0.1.0 h1:NXoh1DOzpjt7XaHdH7tFQW/j1HOyu4mRTaaMnoct/XU=
@@ -45,8 +45,8 @@ github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsI
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
-github.com/jackc/pgx/v5 v5.8.0 h1:TYPDoleBBme0xGSAX3/+NujXXtpZn9HBONkQC7IEZSo=
-github.com/jackc/pgx/v5 v5.8.0/go.mod h1:QVeDInX2m9VyzvNeiCJVjCkNFqzsNb43204HshNSZKw=
+github.com/jackc/pgx/v5 v5.9.0 h1:T/dI+2TvmI2H8s/KH1/lXIbz1CUFk3gn5oTjr0/mBsE=
+github.com/jackc/pgx/v5 v5.9.0/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
 github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/justinas/alice v1.2.0 h1:+MHSA/vccVCF4Uq37S42jwlkvI2Xzl7zTPCN5BnZNVo=

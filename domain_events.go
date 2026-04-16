@@ -2,50 +2,16 @@ package chat
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 
 	fact "github.com/benaskins/axon-fact"
 )
 
-// EventTyper is implemented by all domain event structs.
-type EventTyper interface {
-	EventType() string
-}
-
-// NewEvent creates a fact.Event from a domain event struct.
-func NewEvent(stream string, data EventTyper) (fact.Event, error) {
-	return NewEventWithMeta(stream, data, nil)
-}
-
-// NewEventWithMeta creates a fact.Event with metadata from a domain event struct.
-func NewEventWithMeta(stream string, data EventTyper, meta map[string]string) (fact.Event, error) {
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return fact.Event{}, err
-	}
-	return fact.Event{
-		ID:       generateEventID(),
-		Stream:   stream,
-		Type:     data.EventType(),
-		Data:     raw,
-		Metadata: meta,
-	}, nil
-}
-
-func generateEventID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
 // emitEvent appends a domain event to the event store. Returns nil if es is nil (no-op).
-func emitEvent(ctx context.Context, es fact.EventStore, stream string, data EventTyper, meta map[string]string) error {
+func emitEvent(ctx context.Context, es fact.EventStore, stream string, data fact.EventTyper, meta map[string]string) error {
 	if es == nil {
 		return nil
 	}
-	evt, err := NewEventWithMeta(stream, data, meta)
+	evt, err := fact.NewEventWithMeta(stream, data, meta)
 	if err != nil {
 		return err
 	}

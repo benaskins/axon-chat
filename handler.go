@@ -102,7 +102,7 @@ func newChatHandler(defaultModel string, llm loop.LLMClient, store Store, shutdo
 }
 
 // emit appends a domain event to the event store. Returns nil if no event store is configured.
-func (h *chatHandler) emit(ctx context.Context, stream string, data EventTyper, meta map[string]string) error {
+func (h *chatHandler) emit(ctx context.Context, stream string, data fact.EventTyper, meta map[string]string) error {
 	return emitEvent(ctx, h.eventStore, stream, data, meta)
 }
 

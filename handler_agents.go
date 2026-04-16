@@ -223,7 +223,7 @@ func (h *agentSaveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Determine if this is a create or update
 	ctx := r.Context()
 	existing, _ := h.store.GetAgentByUser(ctx, userID, slug)
-	var eventData EventTyper
+	var eventData fact.EventTyper
 	if existing == nil {
 		eventData = AgentCreated{Agent: agent}
 	} else {

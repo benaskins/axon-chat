@@ -3,12 +3,14 @@ package chat
 import (
 	"encoding/json"
 	"testing"
+
+	fact "github.com/benaskins/axon-fact"
 )
 
 func TestEventTypes(t *testing.T) {
 	tests := []struct {
 		name     string
-		event    EventTyper
+		event    fact.EventTyper
 		wantType string
 	}{
 		{"UserCreated", UserCreated{UserID: "u1"}, "user.created"},
@@ -83,7 +85,7 @@ func TestAgentCreatedPreservesFullConfig(t *testing.T) {
 }
 
 func TestNewEvent(t *testing.T) {
-	evt, err := NewEvent("conversation-abc", ConversationCreated{
+	evt, err := fact.NewEvent("conversation-abc", ConversationCreated{
 		AgentSlug: "writer",
 		UserID:    "u1",
 	})
